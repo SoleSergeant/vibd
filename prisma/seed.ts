@@ -15,25 +15,23 @@ import { refreshVolunteerRankings } from "@/lib/ranking";
 const prisma = new PrismaClient();
 
 async function main() {
-  await prisma.$transaction([
-    prisma.message.deleteMany(),
-    prisma.messageThread.deleteMany(),
-    prisma.rating.deleteMany(),
-    prisma.portfolioItem.deleteMany(),
-    prisma.submission.deleteMany(),
-    prisma.taskApplication.deleteMany(),
-    prisma.shortlist.deleteMany(),
-    prisma.leaderboardEntry.deleteMany(),
-    prisma.volunteerBadge.deleteMany(),
-    prisma.badge.deleteMany(),
-    prisma.taskSkill.deleteMany(),
-    prisma.task.deleteMany(),
-    prisma.volunteerSkill.deleteMany(),
-    prisma.skill.deleteMany(),
-    prisma.volunteerProfile.deleteMany(),
-    prisma.organizationProfile.deleteMany(),
-    prisma.user.deleteMany()
-  ]);
+  await prisma.message.deleteMany();
+  await prisma.messageThread.deleteMany();
+  await prisma.rating.deleteMany();
+  await prisma.portfolioItem.deleteMany();
+  await prisma.submission.deleteMany();
+  await prisma.taskApplication.deleteMany();
+  await prisma.shortlist.deleteMany();
+  await prisma.leaderboardEntry.deleteMany();
+  await prisma.volunteerBadge.deleteMany();
+  await prisma.badge.deleteMany();
+  await prisma.taskSkill.deleteMany();
+  await prisma.task.deleteMany();
+  await prisma.volunteerSkill.deleteMany();
+  await prisma.skill.deleteMany();
+  await prisma.volunteerProfile.deleteMany();
+  await prisma.organizationProfile.deleteMany();
+  await prisma.user.deleteMany();
 
   const skills = await Promise.all([
     prisma.skill.create({ data: { name: "Project Coordination", slug: "project-coordination", category: "Operations" } }),

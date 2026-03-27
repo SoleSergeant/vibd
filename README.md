@@ -15,7 +15,7 @@ Vibd is an MVP web platform for volunteers and early-career talent to prove skil
 ## Setup
 
 1. Install dependencies.
-2. Copy `.env.example` to `.env` and set `DATABASE_URL` and `SESSION_SECRET`.
+2. Copy `.env.example` to `.env` and set `DATABASE_URL`, `DIRECT_URL`, and `SESSION_SECRET`.
 3. Optional: set `HF_TOKEN` to enable AI drafting and smarter recommendations. If it is empty, the app falls back to local heuristics.
 4. Run Prisma generate and migrations.
 5. Seed the database.
@@ -35,10 +35,11 @@ The simplest production path is:
 
 1. Push the repo to GitHub.
 2. Import the GitHub repo into Vercel.
-3. Create a hosted PostgreSQL database and copy its connection string into `DATABASE_URL`.
-4. Set `SESSION_SECRET` in Vercel environment variables.
-5. Optionally set `HF_TOKEN` and `HF_MODEL` if you want AI features in production.
-6. Deploy.
+3. Create a hosted PostgreSQL database and copy its pooled connection string into `DATABASE_URL`.
+4. Set the direct connection string in `DIRECT_URL`.
+5. Set `SESSION_SECRET` in Vercel environment variables.
+6. Optionally set `HF_TOKEN` and `HF_MODEL` if you want AI features in production.
+7. Deploy.
 
 Vercel will run `postinstall` and generate Prisma Client during install.
 
