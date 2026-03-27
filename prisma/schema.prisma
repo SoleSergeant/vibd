@@ -1,0 +1,341 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  VOLUNTEER
+  ORGANIZATION
+}
+
+enum OpportunityStatus {
+  OPEN_VOLUNTEER_WORK
+  OPEN_INTERNSHIPS
+  OPEN_PAID_WORK
+  UNAVAILABLE
+}
+
+enum TaskDifficulty {
+  EASY
+  MEDIUM
+  HARD
+  EXPERT
+}
+
+enum TaskRewardType {
+  EXPERIENCE
+  INTERNSHIP
+  HIRING
+  STIPEND
+}
+
+enum TaskVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum TaskStatus {
+  OPEN
+  IN_REVIEW
+  COMPLETED
+  ARCHIVED
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SHORTLISTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  NEEDS_REVISION
+  ACCEPTED
+  REJECTED
+}
+
+enum MessageThreadStatus {
+  REQUESTED
+  ACTIVE
+  DECLINED
+  ARCHIVED
+}
+
+enum MessageType {
+  TEXT
+  INVITE
+  ACCEPT
+  DECLINE
+  SYSTEM
+}
+
+enum LeaderboardScope {
+  OVERALL
+  SKILL
+  CATEGORY
+}
+
+enum LeaderboardPeriod {
+  ALL_TIME
+  MONTHLY
+}
+
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  name              String
+  passwordHash      String
+  role              UserRole
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  volunteerProfile  VolunteerProfile?
+  organizationProfile OrganizationProfile?
+  sentMessages      Message[]          @relation("SentMessages")
+}
+
+model VolunteerProfile {
+  id                    String               @id @default(cuid())
+  userId                String               @unique
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName              String
+  bio                   String
+  headline              String?
+  interests             String[]
+  languages             String[]
+  availability          String
+  opportunityStatus     OpportunityStatus
+  discoverable          Boolean              @default(true)
+  impactScore           Int                  @default(0)
+  ranking               Int                  @default(0)
+  location              String?
+  verified              Boolean              @default(false)
+  verifiedAt            DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  skills                VolunteerSkill[]
+  applications          TaskApplication[]
+  submissions           Submission[]
+  portfolioItems        PortfolioItem[]
+  shortlistEntries      Shortlist[]
+  badges                VolunteerBadge[]
+  leaderboardEntries    LeaderboardEntry[]
+  messageThreads        MessageThread[]
+}
+
+model OrganizationProfile {
+  id                 String          @id @default(cuid())
+  userId             String          @unique
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  description        String
+  industry           String
+  location           String
+  website            String?
+  verified           Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  tasks              Task[]
+  shortlistEntries   Shortlist[]
+  messageThreads     MessageThread[]
+}
+
+model Skill {
+  id                 String           @id @default(cuid())
+  name               String           @unique
+  slug               String           @unique
+  category           String
+  createdAt          DateTime         @default(now())
+  volunteerSkills    VolunteerSkill[]
+  taskSkills         TaskSkill[]
+  leaderboardEntries LeaderboardEntry[]
+}
+
+model VolunteerSkill {
+  id                 String            @id @default(cuid())
+  volunteerProfileId String
+  skillId            String
+  proficiency        Int               @default(3)
+  volunteerProfile   VolunteerProfile  @relation(fields: [volunteerProfileId], references: [id], onDelete: Cascade)
+  skill              Skill             @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([volunteerProfileId, skillId])
+}
+
+model Task {
+  id                 String           @id @default(cuid())
+  organizationId     String
+  organization       OrganizationProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title              String
+  description        String
+  category           String
+  difficulty         TaskDifficulty
+  deadline           DateTime
+  rewardType         TaskRewardType
+  stipendAmount      Int?
+  visibility         TaskVisibility
+  status             TaskStatus       @default(OPEN)
+  location           String?
+  isRemote           Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  applications       TaskApplication[]
+  submissions        Submission[]
+  taskSkills         TaskSkill[]
+  portfolioItems     PortfolioItem[]
+  threads            MessageThread[]
+}
+
+model TaskSkill {
+  id                 String   @id @default(cuid())
+  taskId             String
+  skillId            String
+  task               Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  skill              Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, skillId])
+}
+
+model TaskApplication {
+  id                 String            @id @default(cuid())
+  taskId             String
+  volunteerProfileId String
+  status             ApplicationStatus @default(APPLIED)
+  note               String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  task               Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  volunteerProfile   VolunteerProfile  @relation(fields: [volunteerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, volunteerProfileId])
+}
+
+model Submission {
+  id                            String             @id @default(cuid())
+  taskId                        String
+  volunteerProfileId            String
+  textSummary                   String
+  attachmentUrl                 String?
+  status                        SubmissionStatus   @default(SUBMITTED)
+  reviewedAt                    DateTime?
+  reviewedByOrganizationId      String?
+  reviewerNote                  String?
+  createdAt                     DateTime          @default(now())
+  updatedAt                     DateTime          @updatedAt
+  task                          Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  volunteerProfile              VolunteerProfile  @relation(fields: [volunteerProfileId], references: [id], onDelete: Cascade)
+  rating                        Rating?
+  portfolioItem                 PortfolioItem?
+
+  @@index([taskId, volunteerProfileId])
+  @@unique([taskId, volunteerProfileId])
+}
+
+model Rating {
+  id                String      @id @default(cuid())
+  submissionId      String      @unique
+  quality           Int
+  communication     Int
+  speed             Int
+  feedback          String
+  createdAt         DateTime    @default(now())
+  submission        Submission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+model PortfolioItem {
+  id                 String            @id @default(cuid())
+  volunteerProfileId String
+  taskId             String            @unique
+  submissionId       String            @unique
+  taskTitle          String
+  organizationName   String
+  summary            String
+  feedback           String
+  rating             Int
+  completedAt        DateTime
+  createdAt          DateTime          @default(now())
+  volunteerProfile   VolunteerProfile  @relation(fields: [volunteerProfileId], references: [id], onDelete: Cascade)
+  task               Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  submission         Submission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+model Badge {
+  id                 String           @id @default(cuid())
+  name               String           @unique
+  description        String
+  icon               String
+  createdAt          DateTime         @default(now())
+  volunteerBadges    VolunteerBadge[]
+}
+
+model VolunteerBadge {
+  id                 String            @id @default(cuid())
+  volunteerProfileId String
+  badgeId            String
+  earnedAt           DateTime          @default(now())
+  volunteerProfile   VolunteerProfile  @relation(fields: [volunteerProfileId], references: [id], onDelete: Cascade)
+  badge              Badge             @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([volunteerProfileId, badgeId])
+}
+
+model MessageThread {
+  id                   String              @id @default(cuid())
+  volunteerProfileId    String
+  organizationProfileId String
+  taskId                String?
+  status                MessageThreadStatus @default(REQUESTED)
+  requiresAcceptance    Boolean             @default(true)
+  isInvite              Boolean             @default(false)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  volunteerProfile      VolunteerProfile    @relation(fields: [volunteerProfileId], references: [id], onDelete: Cascade)
+  organizationProfile   OrganizationProfile @relation(fields: [organizationProfileId], references: [id], onDelete: Cascade)
+  task                  Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  messages              Message[]
+
+  @@unique([volunteerProfileId, organizationProfileId])
+}
+
+model Message {
+  id                 String        @id @default(cuid())
+  threadId           String
+  senderUserId       String
+  body               String
+  type               MessageType    @default(TEXT)
+  createdAt          DateTime       @default(now())
+  thread             MessageThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender             User           @relation("SentMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
+}
+
+model Shortlist {
+  id                 String             @id @default(cuid())
+  organizationProfileId String
+  volunteerProfileId String
+  note               String?
+  createdAt          DateTime           @default(now())
+  organization       OrganizationProfile @relation(fields: [organizationProfileId], references: [id], onDelete: Cascade)
+  volunteerProfile   VolunteerProfile   @relation(fields: [volunteerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationProfileId, volunteerProfileId])
+}
+
+model LeaderboardEntry {
+  id                 String           @id @default(cuid())
+  volunteerProfileId String
+  skillId            String?
+  scope              LeaderboardScope
+  period             LeaderboardPeriod @default(ALL_TIME)
+  label              String
+  score              Float
+  rank               Int
+  updatedAt          DateTime         @updatedAt
+  volunteerProfile   VolunteerProfile  @relation(fields: [volunteerProfileId], references: [id], onDelete: Cascade)
+  skill              Skill?            @relation(fields: [skillId], references: [id], onDelete: SetNull)
+
+  @@unique([volunteerProfileId, scope, period, label])
+}
