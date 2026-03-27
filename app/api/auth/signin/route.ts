@@ -7,10 +7,9 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const email = formValue(form.get("email")).toLowerCase();
   const password = formValue(form.get("password"));
-  const role = formValue(form.get("role"));
 
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !verifyPassword(password, user.passwordHash) || user.role !== role) {
+  if (!user || !verifyPassword(password, user.passwordHash)) {
     return NextResponse.redirect(new URL("/signin?error=invalid", request.url), 303);
   }
 

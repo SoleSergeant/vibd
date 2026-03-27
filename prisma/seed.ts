@@ -199,6 +199,30 @@ async function main() {
         }
       },
       include: { volunteerProfile: true }
+    }),
+    prisma.user.create({
+      data: {
+        email: "maya@vibedwork.dev",
+        name: "Maya Rahmonova",
+        role: UserRole.VOLUNTEER,
+        passwordHash: hashPassword("password123"),
+        volunteerProfile: {
+          create: {
+            fullName: "Maya Rahmonova",
+            bio: "High-performing volunteer with verified delivery across operations, research, and content. Strong track record of completing real tasks with excellent feedback.",
+            headline: "Power volunteer with a strong verified work history.",
+            interests: ["operations", "research", "content", "community"],
+            languages: ["English", "Uzbek", "Russian"],
+            availability: "12-15 hours/week, evenings and weekends",
+            opportunityStatus: OpportunityStatus.OPEN_PAID_WORK,
+            discoverable: true,
+            verified: true,
+            verifiedAt: new Date("2025-08-12"),
+            location: "Tashkent, Uzbekistan"
+          }
+        }
+      },
+      include: { volunteerProfile: true }
     })
   ]);
 
@@ -208,6 +232,7 @@ async function main() {
   const james = volunteerUsers[1].volunteerProfile!;
   const sara = volunteerUsers[2].volunteerProfile!;
   const noah = volunteerUsers[3].volunteerProfile!;
+  const maya = volunteerUsers[4].volunteerProfile!;
 
   await prisma.volunteerSkill.createMany({
     data: [
@@ -218,7 +243,11 @@ async function main() {
       { volunteerProfileId: sara.id, skillId: skills[1].id, proficiency: 5 },
       { volunteerProfileId: sara.id, skillId: skills[2].id, proficiency: 4 },
       { volunteerProfileId: noah.id, skillId: skills[5].id, proficiency: 5 },
-      { volunteerProfileId: noah.id, skillId: skills[0].id, proficiency: 4 }
+      { volunteerProfileId: noah.id, skillId: skills[0].id, proficiency: 4 },
+      { volunteerProfileId: maya.id, skillId: skills[0].id, proficiency: 5 },
+      { volunteerProfileId: maya.id, skillId: skills[1].id, proficiency: 5 },
+      { volunteerProfileId: maya.id, skillId: skills[2].id, proficiency: 5 },
+      { volunteerProfileId: maya.id, skillId: skills[5].id, proficiency: 4 }
     ]
   });
 
@@ -295,10 +324,64 @@ async function main() {
           create: [{ skillId: skills[2].id }]
         }
       }
+    }),
+    prisma.task.create({
+      data: {
+        organizationId: citykind.id,
+        title: "Volunteer welcome checklist",
+        description: "Create a concise welcome checklist for incoming volunteers, with first-week steps, contacts, and onboarding expectations.",
+        category: "Operations",
+        difficulty: TaskDifficulty.EASY,
+        deadline: new Date("2026-04-20"),
+        rewardType: TaskRewardType.EXPERIENCE,
+        visibility: TaskVisibility.PUBLIC,
+        status: TaskStatus.OPEN,
+        location: "Remote",
+        isRemote: true,
+        taskSkills: {
+          create: [{ skillId: skills[0].id }, { skillId: skills[2].id }]
+        }
+      }
+    }),
+    prisma.task.create({
+      data: {
+        organizationId: citykind.id,
+        title: "Community program FAQ",
+        description: "Turn rough notes about a new community program into a clear FAQ with answers for volunteers and participants.",
+        category: "Content",
+        difficulty: TaskDifficulty.MEDIUM,
+        deadline: new Date("2026-04-22"),
+        rewardType: TaskRewardType.EXPERIENCE,
+        visibility: TaskVisibility.PUBLIC,
+        status: TaskStatus.OPEN,
+        location: "Remote",
+        isRemote: true,
+        taskSkills: {
+          create: [{ skillId: skills[2].id }, { skillId: skills[1].id }]
+        }
+      }
+    }),
+    prisma.task.create({
+      data: {
+        organizationId: northstar.id,
+        title: "Launch coordination brief",
+        description: "Prepare an internal launch coordination brief with milestones, responsibilities, and a simple status table.",
+        category: "Operations",
+        difficulty: TaskDifficulty.MEDIUM,
+        deadline: new Date("2026-04-24"),
+        rewardType: TaskRewardType.INTERNSHIP,
+        visibility: TaskVisibility.PUBLIC,
+        status: TaskStatus.OPEN,
+        location: "Hybrid",
+        isRemote: true,
+        taskSkills: {
+          create: [{ skillId: skills[0].id }, { skillId: skills[2].id }]
+        }
+      }
     })
   ]);
 
-  const [onboardingTask, surveyTask, landingTask, contentTask] = tasks;
+  const [onboardingTask, surveyTask, landingTask, contentTask, aminaChecklistTask, aminaFaqTask, aminaBriefTask] = tasks;
 
   await prisma.taskApplication.createMany({
     data: [
@@ -350,11 +433,77 @@ async function main() {
     }
   });
 
+  const aminaChecklistSubmission = await prisma.submission.create({
+    data: {
+      taskId: aminaChecklistTask.id,
+      volunteerProfileId: amina.id,
+      textSummary: "Built a volunteer welcome checklist with first-week steps, contact points, and onboarding expectations.",
+      attachmentUrl: "https://files.example.com/amina-welcome-checklist.pdf",
+      status: "ACCEPTED"
+    }
+  });
+
+  const aminaFaqSubmission = await prisma.submission.create({
+    data: {
+      taskId: aminaFaqTask.id,
+      volunteerProfileId: amina.id,
+      textSummary: "Turned rough community notes into a clear FAQ covering schedule, access, and who to contact for help.",
+      attachmentUrl: "https://files.example.com/amina-program-faq.docx",
+      status: "ACCEPTED"
+    }
+  });
+
+  const aminaBriefSubmission = await prisma.submission.create({
+    data: {
+      taskId: aminaBriefTask.id,
+      volunteerProfileId: amina.id,
+      textSummary: "Prepared a launch coordination brief with milestones, responsibilities, and a simple status table for the team.",
+      attachmentUrl: "https://files.example.com/amina-launch-brief.pdf",
+      status: "ACCEPTED"
+    }
+  });
+
+  const mayaOnboardingSubmission = await prisma.submission.create({
+    data: {
+      taskId: onboardingTask.id,
+      volunteerProfileId: maya.id,
+      textSummary: "Built a polished onboarding guide with a clear first-week checklist, support contacts, and role expectations.",
+      attachmentUrl: "https://files.example.com/maya-onboarding.pdf",
+      status: "ACCEPTED"
+    }
+  });
+
+  const mayaSurveySubmission = await prisma.submission.create({
+    data: {
+      taskId: surveyTask.id,
+      volunteerProfileId: maya.id,
+      textSummary: "Turned raw community feedback into themes, a summary table, and action-ready recommendations.",
+      attachmentUrl: "https://files.example.com/maya-survey.pdf",
+      status: "ACCEPTED"
+    }
+  });
+
+  const mayaLandingSubmission = await prisma.submission.create({
+    data: {
+      taskId: landingTask.id,
+      volunteerProfileId: maya.id,
+      textSummary: "Improved the landing page hierarchy, tightened mobile spacing, and clarified the CTA story.",
+      attachmentUrl: "https://files.example.com/maya-landing.fig",
+      status: "ACCEPTED"
+    }
+  });
+
   await prisma.rating.createMany({
     data: [
       { submissionId: onboardingSubmission.id, quality: 5, communication: 5, speed: 4, feedback: "Clear, practical, and ready to use." },
       { submissionId: surveySubmission.id, quality: 5, communication: 4, speed: 5, feedback: "Excellent synthesis and structure." },
-      { submissionId: landingSubmission.id, quality: 4, communication: 5, speed: 4, feedback: "Strong visual instincts and clean execution." }
+      { submissionId: landingSubmission.id, quality: 4, communication: 5, speed: 4, feedback: "Strong visual instincts and clean execution." },
+      { submissionId: mayaOnboardingSubmission.id, quality: 5, communication: 5, speed: 5, feedback: "Excellent polish and immediate usefulness." },
+      { submissionId: mayaSurveySubmission.id, quality: 5, communication: 5, speed: 5, feedback: "Very strong synthesis and recommendation quality." },
+      { submissionId: mayaLandingSubmission.id, quality: 5, communication: 5, speed: 4, feedback: "Great product instincts and execution detail." },
+      { submissionId: aminaChecklistSubmission.id, quality: 5, communication: 5, speed: 5, feedback: "Extremely practical and immediately usable." },
+      { submissionId: aminaFaqSubmission.id, quality: 5, communication: 4, speed: 5, feedback: "Clear, organized, and helpful for the team." },
+      { submissionId: aminaBriefSubmission.id, quality: 4, communication: 5, speed: 4, feedback: "Strong structure and dependable delivery." }
     ]
   });
 
@@ -392,6 +541,72 @@ async function main() {
         feedback: "Strong visual instincts and clean execution.",
         rating: 4,
         completedAt: new Date("2026-03-18")
+      },
+      {
+        volunteerProfileId: amina.id,
+        taskId: aminaChecklistTask.id,
+        submissionId: aminaChecklistSubmission.id,
+        taskTitle: aminaChecklistTask.title,
+        organizationName: citykind.name,
+        summary: aminaChecklistSubmission.textSummary,
+        feedback: "Extremely practical and immediately usable.",
+        rating: 5,
+        completedAt: new Date("2026-03-12")
+      },
+      {
+        volunteerProfileId: amina.id,
+        taskId: aminaFaqTask.id,
+        submissionId: aminaFaqSubmission.id,
+        taskTitle: aminaFaqTask.title,
+        organizationName: citykind.name,
+        summary: aminaFaqSubmission.textSummary,
+        feedback: "Clear, organized, and helpful for the team.",
+        rating: 5,
+        completedAt: new Date("2026-03-15")
+      },
+      {
+        volunteerProfileId: amina.id,
+        taskId: aminaBriefTask.id,
+        submissionId: aminaBriefSubmission.id,
+        taskTitle: aminaBriefTask.title,
+        organizationName: northstar.name,
+        summary: aminaBriefSubmission.textSummary,
+        feedback: "Strong structure and dependable delivery.",
+        rating: 4,
+        completedAt: new Date("2026-03-18")
+      },
+      {
+        volunteerProfileId: maya.id,
+        taskId: onboardingTask.id,
+        submissionId: mayaOnboardingSubmission.id,
+        taskTitle: onboardingTask.title,
+        organizationName: citykind.name,
+        summary: mayaOnboardingSubmission.textSummary,
+        feedback: "Excellent polish and immediate usefulness.",
+        rating: 5,
+        completedAt: new Date("2026-03-20")
+      },
+      {
+        volunteerProfileId: maya.id,
+        taskId: surveyTask.id,
+        submissionId: mayaSurveySubmission.id,
+        taskTitle: surveyTask.title,
+        organizationName: citykind.name,
+        summary: mayaSurveySubmission.textSummary,
+        feedback: "Very strong synthesis and recommendation quality.",
+        rating: 5,
+        completedAt: new Date("2026-03-22")
+      },
+      {
+        volunteerProfileId: maya.id,
+        taskId: landingTask.id,
+        submissionId: mayaLandingSubmission.id,
+        taskTitle: landingTask.title,
+        organizationName: northstar.name,
+        summary: mayaLandingSubmission.textSummary,
+        feedback: "Great product instincts and execution detail.",
+        rating: 5,
+        completedAt: new Date("2026-03-24")
       }
     ]
   });
@@ -400,8 +615,10 @@ async function main() {
     data: [
       { organizationProfileId: citykind.id, volunteerProfileId: amina.id, note: "Excellent fit for operations and community programs." },
       { organizationProfileId: citykind.id, volunteerProfileId: sara.id, note: "Great for research and communication work." },
+      { organizationProfileId: citykind.id, volunteerProfileId: maya.id, note: "Top performer with proven delivery across tasks and high-impact ratings." },
       { organizationProfileId: northstar.id, volunteerProfileId: james.id, note: "Strong candidate for product and frontend support." },
-      { organizationProfileId: northstar.id, volunteerProfileId: noah.id, note: "Great analytical thinking and reliable communication." }
+      { organizationProfileId: northstar.id, volunteerProfileId: noah.id, note: "Great analytical thinking and reliable communication." },
+      { organizationProfileId: northstar.id, volunteerProfileId: maya.id, note: "Would be a strong fit for senior volunteer or paid project work." }
     ]
   });
 

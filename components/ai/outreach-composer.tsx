@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { readJsonResponse } from "@/lib/fetch-json";
 
 type TaskOption = {
@@ -24,6 +23,7 @@ export function OutreachComposer({ volunteerProfileId, volunteerName, organizati
   const [taskId, setTaskId] = useState("");
   const [goal, setGoal] = useState("Invite the volunteer to continue the conversation.");
   const [tone, setTone] = useState("warm");
+  const [extraContext, setExtraContext] = useState("");
   const [body, setBody] = useState("");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -42,6 +42,7 @@ export function OutreachComposer({ volunteerProfileId, volunteerName, organizati
             taskId: selectedTask?.id ?? null,
             goal,
             tone,
+            extraContext,
             priorRelationship: ""
           })
         });
@@ -64,7 +65,7 @@ export function OutreachComposer({ volunteerProfileId, volunteerName, organizati
     <Card>
       <CardHeader>
         <CardTitle>AI message drafting</CardTitle>
-        <CardDescription>Generate an outreach message, then send it directly from VibedWork.</CardDescription>
+        <CardDescription>Generate a detailed outreach message grounded in verified work history and the selected task.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
@@ -90,7 +91,15 @@ export function OutreachComposer({ volunteerProfileId, volunteerName, organizati
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">Goal</label>
-          <Input value={goal} onChange={(event) => setGoal(event.target.value)} />
+          <Textarea value={goal} onChange={(event) => setGoal(event.target.value)} placeholder="What should this message achieve?" />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Details to mention</label>
+          <Textarea
+            value={extraContext}
+            onChange={(event) => setExtraContext(event.target.value)}
+            placeholder="Optional: mention a deadline, a specific task, or why this person stood out."
+          />
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">Draft message</label>
@@ -105,7 +114,7 @@ export function OutreachComposer({ volunteerProfileId, volunteerName, organizati
             variant="outline"
             onClick={() =>
               setBody(
-                `Hi ${volunteerName},\n\nI’m reaching out from ${organizationName}. ${goal}\n\nIf this sounds interesting, I’d love to continue the conversation.`
+                `Hi ${volunteerName},\n\nI'm reaching out from ${organizationName}. ${goal}${extraContext ? ` ${extraContext}` : ""}\n\nIf this sounds interesting, I'd love to continue the conversation.`
               )
             }
           >

@@ -10,6 +10,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { formatDate } from "@/lib/format";
+import { SkillMatchCard } from "@/components/ai/skill-match-card";
+import { JobChatbot } from "@/components/ai/job-chatbot";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,23 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
   });
 
   if (!task) notFound();
+  const volunteerForMatch =
+    currentUser?.role === "VOLUNTEER" && currentUser.volunteerProfile
+      ? await prisma.volunteerProfile.findUnique({
+          where: { id: currentUser.volunteerProfile.id },
+          include: {
+            skills: { include: { skill: true } },
+            badges: { include: { badge: true } },
+            portfolioItems: {
+              include: {
+                task: { include: { organization: true } },
+                submission: { include: { rating: true } }
+              },
+              orderBy: { completedAt: "desc" }
+            }
+          }
+        })
+      : null;
   const orgUser = currentUser?.role === "ORGANIZATION" && currentUser.organizationProfile?.id === task.organizationId;
   const publicVisible = task.visibility === "PUBLIC";
   if (!publicVisible && !orgUser) {
@@ -73,33 +92,83 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
         </CardContent>
       </Card>
 
+      {volunteerForMatch ? (
+        <SkillMatchCard
+          volunteer={{
+            fullName: volunteerForMatch.fullName,
+            bio: volunteerForMatch.bio,
+            headline: volunteerForMatch.headline,
+            interests: volunteerForMatch.interests,
+            availability: volunteerForMatch.availability,
+            opportunityStatus: volunteerForMatch.opportunityStatus,
+            impactScore: volunteerForMatch.impactScore,
+            ranking: volunteerForMatch.ranking,
+            verified: volunteerForMatch.verified,
+            badges: volunteerForMatch.badges,
+            skills: volunteerForMatch.skills,
+            portfolioItems: volunteerForMatch.portfolioItems.map((item) => ({
+              taskTitle: item.task.title,
+              organizationName: item.task.organization.name,
+              summary: item.summary,
+              feedback: item.feedback,
+              rating: item.rating ?? 0,
+              completedAt: item.completedAt
+            }))
+          }}
+          task={{
+            title: task.title,
+            description: task.description,
+            category: task.category,
+            difficulty: task.difficulty,
+            rewardType: task.rewardType,
+            visibility: task.visibility,
+            organizationName: task.organization.name,
+            skills: task.taskSkills.map((item) => item.skill.name)
+          }}
+        />
+      ) : null}
+
       {currentUser?.role === "VOLUNTEER" && volunteerProfile ? (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardContent className="space-y-4 p-6">
-              <h3 className="text-lg font-semibold">Apply to this task</h3>
-              <form action={`/api/tasks/${task.id}/apply`} method="post" className="space-y-4">
-                <Textarea name="note" placeholder="Tell the organization why you’re a fit" />
-                <Button type="submit" className="w-full">
-                  {applied ? "Update application" : "Apply"}
-                </Button>
-              </form>
-              {applied ? <p className="text-sm text-slate-500">Current status: {applied.status.toLowerCase()}</p> : null}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="space-y-4 p-6">
-              <h3 className="text-lg font-semibold">Submit work</h3>
-              <form action={`/api/tasks/${task.id}/submit`} method="post" className="space-y-4">
-                <Textarea name="textSummary" placeholder="Summarize your work" required />
-                <Input name="attachmentUrl" placeholder="File or attachment URL" />
-                <Button type="submit" className="w-full">
-                  {submitted ? "Update submission" : "Submit work"}
-                </Button>
-              </form>
-              {submitted ? <p className="text-sm text-slate-500">Current status: {submitted.status.toLowerCase()}</p> : null}
-            </CardContent>
-          </Card>
+        <div className="space-y-6">
+          <JobChatbot
+            taskId={task.id}
+            taskTitle={task.title}
+            organizationName={task.organization.name}
+            taskSkills={task.taskSkills.map((item) => item.skill.name)}
+          />
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card>
+              <CardContent className="space-y-4 p-6">
+                <h3 className="text-lg font-semibold">Apply to this task</h3>
+                <form action={`/api/tasks/${task.id}/apply`} method="post" className="space-y-4">
+                  <Textarea name="note" placeholder="Tell the organization why you're a fit" />
+                  <Button type="submit" className="w-full">
+                    {applied ? "Update application" : "Apply"}
+                  </Button>
+                </form>
+                {applied ? <p className="text-sm text-slate-500">Current status: {applied.status.toLowerCase()}</p> : null}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="space-y-4 p-6">
+                <h3 className="text-lg font-semibold">Submit work</h3>
+                <form action={`/api/tasks/${task.id}/submit`} method="post" encType="multipart/form-data" className="space-y-4">
+                  <Textarea name="textSummary" placeholder="Summarize your work" required />
+                  <Input name="attachmentUrl" placeholder="Link to your file, if you have one" />
+                  <Input name="assignmentFile" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
+                  <Button type="submit" className="w-full">
+                    {submitted ? "Update submission" : "Submit work"}
+                  </Button>
+                </form>
+                {submitted ? <p className="text-sm text-slate-500">Current status: {submitted.status.toLowerCase()}</p> : null}
+                {submitted?.attachmentUrl ? (
+                  <a href={submitted.attachmentUrl} className="text-sm font-medium text-[color:hsl(var(--brand-blue))]" target="_blank" rel="noreferrer">
+                    Open uploaded assignment
+                  </a>
+                ) : null}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       ) : null}
 

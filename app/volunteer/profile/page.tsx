@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { formatDate } from "@/lib/format";
+import { ButtonLink } from "@/components/ui/button";
+import { ImpactCvCard } from "@/components/ai/impact-cv-card";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +25,42 @@ export default async function VolunteerProfilePage() {
       </PageShell>
     );
   }
+  const profile = await prisma.volunteerProfile.findUnique({
+    where: { id: user.volunteerProfile.id },
+    include: {
+      skills: { include: { skill: true } },
+      badges: { include: { badge: true } },
+      portfolioItems: {
+        include: {
+          task: { include: { organization: true } },
+          submission: { include: { rating: true } }
+        },
+        orderBy: { completedAt: "desc" }
+      }
+    }
+  });
+
+  if (!profile) {
+    return (
+      <PageShell>
+        <Card>
+          <CardContent className="p-6 text-sm text-slate-600">Volunteer profile not found.</CardContent>
+        </Card>
+      </PageShell>
+    );
+  }
+
   const allSkills = await prisma.skill.findMany({ orderBy: { category: "asc" } });
-  const profile = user.volunteerProfile;
 
   return (
     <PageShell className="space-y-8">
       <SectionHeading eyebrow="Volunteer profile" title={profile.fullName} description="This profile powers discovery, ranking, and portfolio proof." />
+      <div className="flex flex-wrap gap-3">
+        <ButtonLink href="/volunteer/cv">Open AI impact CV</ButtonLink>
+        <ButtonLink href="/volunteer/dashboard" variant="outline">
+          Dashboard
+        </ButtonLink>
+      </div>
       <div className="grid gap-6 lg:grid-cols-[0.9fr,1.1fr]">
         <Card>
           <CardContent className="space-y-4 p-6">
@@ -38,12 +70,13 @@ export default async function VolunteerProfilePage() {
               <p className="text-sm text-slate-500">Rank #{profile.ranking || "unranked"}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {user.volunteerProfile.badges.map((entry) => (
+              {profile.badges.map((entry) => (
                 <Badge key={entry.badgeId}>{entry.badge.name}</Badge>
               ))}
             </div>
             <div className="text-sm text-slate-600">
               <p>{profile.bio}</p>
+              {profile.location ? <p className="mt-2">From: {profile.location}</p> : null}
               <p className="mt-2">Availability: {profile.availability}</p>
               <p>Status: {profile.opportunityStatus.toLowerCase().replaceAll("_", " ")}</p>
               <p>Discoverable: {profile.discoverable ? "Yes" : "No"}</p>
@@ -59,6 +92,7 @@ export default async function VolunteerProfilePage() {
               <Input name="fullName" defaultValue={profile.fullName} />
               <Input name="headline" defaultValue={profile.headline ?? ""} placeholder="Headline" />
               <Textarea name="bio" defaultValue={profile.bio} />
+              <Input name="location" defaultValue={profile.location ?? ""} placeholder="Where are you from?" />
               <Input name="interests" defaultValue={profile.interests.join(", ")} placeholder="Interests, comma separated" />
               <Input name="languages" defaultValue={profile.languages.join(", ")} placeholder="Languages, comma separated" />
               <Input name="availability" defaultValue={profile.availability} />
@@ -77,6 +111,31 @@ export default async function VolunteerProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      <ImpactCvCard
+        volunteer={{
+          fullName: profile.fullName,
+          location: profile.location,
+          headline: profile.headline,
+          bio: profile.bio,
+          interests: profile.interests,
+          availability: profile.availability,
+          opportunityStatus: profile.opportunityStatus,
+          impactScore: profile.impactScore,
+          ranking: profile.ranking,
+          verified: profile.verified,
+          badges: profile.badges.map((entry) => entry.badge.name),
+          skills: profile.skills.map((item) => ({ name: item.skill.name, proficiency: item.proficiency })),
+          portfolioItems: profile.portfolioItems.map((item) => ({
+            taskTitle: item.task.title,
+            organizationName: item.task.organization.name,
+            summary: item.summary,
+            feedback: item.feedback,
+            rating: item.rating ?? 0,
+            completedAt: item.completedAt
+          }))
+        }}
+      />
 
       <Card>
         <CardContent className="space-y-4 p-6">

@@ -42,6 +42,16 @@ export default async function SubmissionsPage() {
                 <p className="text-sm text-slate-500">{submission.status.toLowerCase()}</p>
               </div>
               <p className="text-sm leading-6 text-slate-600">{submission.textSummary}</p>
+              {submission.attachmentUrl ? (
+                <a
+                  href={submission.attachmentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-medium text-[color:hsl(var(--brand-blue))]"
+                >
+                  View uploaded assignment
+                </a>
+              ) : null}
               <p className="text-xs text-slate-500">Submitted {formatDate(submission.createdAt)}</p>
               <form action={`/api/submissions/${submission.id}/review`} method="post" className="grid gap-3 md:grid-cols-4">
                 <Input name="quality" type="number" min="1" max="5" placeholder="Quality" />

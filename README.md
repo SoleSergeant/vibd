@@ -11,15 +11,17 @@ Vibd is an MVP web platform for volunteers and early-career talent to prove skil
 - PostgreSQL
 - Simple role-based auth with signed cookies
 - Hugging Face Inference for optional AI features
+- OpenAI API for the volunteer job chatbot
 
 ## Setup
 
 1. Install dependencies.
 2. Copy `.env.example` to `.env` and set `DATABASE_URL`, `DIRECT_URL`, and `SESSION_SECRET`.
-3. Optional: set `HF_TOKEN` to enable AI drafting and smarter recommendations. If it is empty, the app falls back to local heuristics.
-4. Run Prisma generate and migrations.
-5. Seed the database.
-6. Start the app.
+3. Optional: set `HF_TOKEN` to enable AI recommendations, skill matching, impact CV generation, and message drafting. If it is empty, the app falls back to local heuristics.
+4. Optional: set `OPENAI_API_KEY` and `OPENAI_MODEL` to enable the volunteer job chatbot. If the key is empty, the chatbot falls back to a built-in job coach response.
+5. Run Prisma generate and migrations.
+6. Seed the database.
+7. Start the app.
 
 ```bash
 npm install
@@ -39,7 +41,8 @@ The simplest production path is:
 4. Set the direct connection string in `DIRECT_URL`.
 5. Set `SESSION_SECRET` in Vercel environment variables.
 6. Optionally set `HF_TOKEN` and `HF_MODEL` if you want AI features in production.
-7. Deploy.
+7. Optionally set `OPENAI_API_KEY` and `OPENAI_MODEL` if you want the OpenAI-powered chatbot in production.
+8. Deploy.
 
 Vercel will run `postinstall` and generate Prisma Client during install.
 
@@ -51,6 +54,7 @@ Use these seeded accounts with password `password123`.
 - Volunteer: `james@vibedwork.dev`
 - Volunteer: `sara@vibedwork.dev`
 - Volunteer: `noah@vibedwork.dev`
+- Volunteer: `maya@vibedwork.dev` - strongest demo account
 - Organization: `hello@citykind.org`
 - Organization: `ops@northstarstudio.co`
 
@@ -66,12 +70,17 @@ Use these seeded accounts with password `password123`.
 
 ## AI Setup
 
-AI uses Hugging Face's inference platform with a free-tier token.
+AI uses Hugging Face's inference platform for recommendations, matching, impact CVs, and message drafting.
 
 - `HF_TOKEN`: Hugging Face access token
 - `HF_MODEL`: optional model override, default is `google/gemma-2-2b-it`
 
-If the token is missing or the API call fails, Vibd still works using built-in fallback heuristics.
+The volunteer job chatbot uses OpenAI's API.
+
+- `OPENAI_API_KEY`: OpenAI API key
+- `OPENAI_MODEL`: optional model override, default is `gpt-4o-mini`
+
+If either provider key is missing or the API call fails, Vibd still works using built-in fallback heuristics.
 
 ## Mocked vs Production-Ready
 

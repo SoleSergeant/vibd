@@ -71,6 +71,9 @@ export default async function VolunteerDashboardPage() {
       />
       <div className="flex flex-wrap gap-3">
         <ButtonLink href="/volunteer/profile">Edit profile</ButtonLink>
+        <ButtonLink href="/volunteer/cv" variant="secondary">
+          AI impact CV
+        </ButtonLink>
         <ButtonLink href="/volunteer/portfolio" variant="outline">
           Portfolio
         </ButtonLink>

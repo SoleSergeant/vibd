@@ -16,7 +16,7 @@ export default async function VolunteerPortfolioPage() {
 
   const items = await prisma.portfolioItem.findMany({
     where: { volunteerProfileId: user.volunteerProfile.id },
-    include: { task: { include: { organization: true } } },
+    include: { task: { include: { organization: true } }, submission: true },
     orderBy: { completedAt: "desc" }
   });
 
@@ -40,6 +40,16 @@ export default async function VolunteerPortfolioPage() {
               </div>
               <p className="text-sm leading-6 text-slate-600">{item.summary}</p>
               <p className="text-sm text-slate-600">Feedback: {item.feedback}</p>
+              {item.submission.attachmentUrl ? (
+                <a
+                  href={item.submission.attachmentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-medium text-[color:hsl(var(--brand-blue))]"
+                >
+                  Open assignment file
+                </a>
+              ) : null}
               <p className="text-xs text-slate-500">Completed {formatDate(item.completedAt)}</p>
             </CardContent>
           </Card>

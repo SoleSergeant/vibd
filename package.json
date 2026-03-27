@@ -11,7 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "node prisma/seed-runner.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
