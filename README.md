@@ -29,6 +29,19 @@ npx prisma db seed
 npm run dev
 ```
 
+## Deploy
+
+The simplest production path is:
+
+1. Push the repo to GitHub.
+2. Import the GitHub repo into Vercel.
+3. Create a hosted PostgreSQL database and copy its connection string into `DATABASE_URL`.
+4. Set `SESSION_SECRET` in Vercel environment variables.
+5. Optionally set `HF_TOKEN` and `HF_MODEL` if you want AI features in production.
+6. Deploy.
+
+Vercel will run `postinstall` and generate Prisma Client during install.
+
 ## Demo Accounts
 
 Use these seeded accounts with password `password123`.
