@@ -30,7 +30,7 @@ export function JobChatbot({ taskId, taskTitle, organizationName, taskSkills }: 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: `Ask me anything about ${taskTitle}. I can explain what the job needs, what skills you gain, and what experience helps.`
+      content: `Ask me anything about ${taskTitle}. I can explain what the job needs, what skills you gain, what experience helps, and how to stand out.`
     }
   ]);
   const [question, setQuestion] = useState("");
@@ -75,11 +75,11 @@ export function JobChatbot({ taskId, taskTitle, organizationName, taskSkills }: 
   };
 
   return (
-    <Card className="border-[color:rgba(45,138,227,0.18)] bg-[linear-gradient(180deg,rgba(45,138,227,0.06),rgba(255,255,255,1))]">
+    <Card className="border-[color:rgba(45,138,227,0.24)] bg-[linear-gradient(180deg,rgba(45,138,227,0.08),rgba(255,255,255,1))] shadow-sm">
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-xl">Job coach chatbot</CardTitle>
+            <CardTitle className="text-xl">Visible AI job coach</CardTitle>
             <p className="text-sm text-slate-600">Ask about this role, the skills you gain, and what experience helps.</p>
           </div>
           <Badge className="bg-[color:rgba(21,228,2,0.12)] text-[color:rgb(21,160,2)]">OpenAI-powered</Badge>
@@ -123,7 +123,7 @@ export function JobChatbot({ taskId, taskTitle, organizationName, taskSkills }: 
             <Button type="button" onClick={() => void sendQuestion(question)} disabled={isSubmitting}>
               {isSubmitting ? "Thinking..." : "Ask"}
             </Button>
-            <p className="text-xs text-slate-500">You can ask about requirements, skills gained, experience needed, or how to stand out.</p>
+            <p className="text-xs text-slate-500">Ask about requirements, skills gained, experience needed, or how to stand out.</p>
           </div>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </div>

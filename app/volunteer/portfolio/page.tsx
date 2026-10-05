@@ -5,6 +5,7 @@ import { SectionHeading } from "@/components/section-heading";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
+import { AttachmentLink } from "@/components/attachment-link";
 
 export const dynamic = "force-dynamic";
 
@@ -40,16 +41,7 @@ export default async function VolunteerPortfolioPage() {
               </div>
               <p className="text-sm leading-6 text-slate-600">{item.summary}</p>
               <p className="text-sm text-slate-600">Feedback: {item.feedback}</p>
-              {item.submission.attachmentUrl ? (
-                <a
-                  href={item.submission.attachmentUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm font-medium text-[color:hsl(var(--brand-blue))]"
-                >
-                  Open assignment file
-                </a>
-              ) : null}
+              <AttachmentLink url={item.submission.attachmentUrl}>Open assignment file</AttachmentLink>
               <p className="text-xs text-slate-500">Completed {formatDate(item.completedAt)}</p>
             </CardContent>
           </Card>

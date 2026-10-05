@@ -29,9 +29,14 @@ export default async function HomePage() {
     <PageShell className="space-y-16">
       <section className="grid gap-8 lg:grid-cols-[1.25fr,0.75fr] lg:items-center">
         <div className="space-y-6">
-          <Badge className="w-fit bg-white px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-slate-500">
-            Real work. Real proof. Real opportunities.
-          </Badge>
+          <div className="flex flex-wrap gap-2">
+            <Badge className="w-fit bg-[color:rgba(21,228,2,0.12)] px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-[color:rgb(21,160,2)]">
+              AI-powered hiring
+            </Badge>
+            <Badge className="w-fit bg-white px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-slate-500">
+              Real work. Real proof. Real opportunities.
+            </Badge>
+          </div>
           <div className="space-y-4">
             <h1 className="font-[var(--font-display)] text-4xl font-semibold tracking-tight text-slate-950 sm:text-6xl">
               Build a career through impact.
@@ -48,6 +53,9 @@ export default async function HomePage() {
             </ButtonLink>
             <ButtonLink href="/marketplace" variant="secondary">
               Explore workboard
+            </ButtonLink>
+            <ButtonLink href="/volunteer/cv" variant="outline">
+              View impact CV
             </ButtonLink>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">

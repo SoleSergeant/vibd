@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { readJsonResponse } from "@/lib/fetch-json";
 
 type Preset = {
   label: string;
@@ -53,6 +54,9 @@ const presets: Preset[] = [
 export function QuickTaskPoster() {
   const [template, setTemplate] = useState<Preset>(presets[0]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [aiNotes, setAiNotes] = useState("We need someone to create a practical volunteer onboarding guide.");
+  const [isDrafting, setIsDrafting] = useState(false);
+  const [draftError, setDraftError] = useState("");
   const [previewTitle, setPreviewTitle] = useState(presets[0].title);
   const [previewDescription, setPreviewDescription] = useState(presets[0].description);
   const [previewCategory, setPreviewCategory] = useState(presets[0].category);
@@ -86,6 +90,50 @@ export function QuickTaskPoster() {
     setPreviewDifficulty(item.difficulty);
   };
 
+  const applyDraft = async () => {
+    setDraftError("");
+    setIsDrafting(true);
+    try {
+      const response = await fetch("/api/ai/task-brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notes: aiNotes,
+          current: {
+            title: previewTitle,
+            description: previewDescription,
+            category: previewCategory,
+            skills: previewSkills.split(",").map((item) => item.trim()).filter(Boolean),
+            rewardType: previewReward,
+            difficulty: previewDifficulty,
+            visibility: previewVisibility,
+            location: previewLocation
+          }
+        })
+      });
+      const data = await readJsonResponse(response);
+      if (!response.ok) {
+        throw new Error((data?.error as string | undefined) || "Could not generate a task draft");
+      }
+      const draft = data?.draft && typeof data.draft === "object" ? (data.draft as Record<string, unknown>) : null;
+      if (!draft) {
+        throw new Error("The assistant returned no draft.");
+      }
+      if (typeof draft.title === "string") setPreviewTitle(draft.title);
+      if (typeof draft.description === "string") setPreviewDescription(draft.description);
+      if (typeof draft.category === "string") setPreviewCategory(draft.category);
+      if (Array.isArray(draft.skills)) setPreviewSkills((draft.skills as string[]).join(", "));
+      if (typeof draft.rewardType === "string") setPreviewReward(draft.rewardType.toUpperCase() as Preset["rewardType"]);
+      if (typeof draft.difficulty === "string") setPreviewDifficulty(draft.difficulty.toUpperCase() as Preset["difficulty"]);
+      if (typeof draft.visibility === "string") setPreviewVisibility(draft.visibility.toUpperCase());
+      if (typeof draft.location === "string") setPreviewLocation(draft.location);
+    } catch (error) {
+      setDraftError(error instanceof Error ? error.message : "Could not generate a task draft");
+    } finally {
+      setIsDrafting(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -99,6 +147,23 @@ export function QuickTaskPoster() {
               {item.label}
             </Button>
           ))}
+        </div>
+
+        <div className="space-y-3 rounded-3xl border border-[color:rgba(45,138,227,0.18)] bg-[linear-gradient(180deg,rgba(45,138,227,0.06),rgba(255,255,255,1))] p-4">
+          <div>
+            <p className="text-sm font-medium text-slate-900">AI post helper</p>
+            <p className="text-xs text-slate-500">Type rough notes and Vibd will turn them into a clean post structure.</p>
+          </div>
+          <Textarea value={aiNotes} onChange={(event) => setAiNotes(event.target.value)} rows={4} placeholder="Describe the work in simple language..." />
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" onClick={() => void applyDraft()} disabled={isDrafting}>
+              {isDrafting ? "Drafting..." : "Generate structured post"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setAiNotes("We need someone to create a practical volunteer onboarding guide.")}>
+              Reset notes
+            </Button>
+          </div>
+          {draftError ? <p className="text-sm text-red-600">{draftError}</p> : null}
         </div>
 
         <form id="task-create-form" action="/api/tasks" method="post" className="space-y-4">

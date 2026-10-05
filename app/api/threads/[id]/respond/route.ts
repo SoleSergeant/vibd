@@ -18,21 +18,29 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   const response = formValue((await request.formData()).get("response"));
+  if (response !== "ACCEPT" && response !== "DECLINE") {
+    return NextResponse.redirect(new URL(`/inbox/${params.id}`, request.url), 303);
+  }
   const accepted = response === "ACCEPT";
+  // Nothing to do if the thread is already in the requested state.
+  if ((accepted && thread.status === "ACTIVE") || (!accepted && thread.status === "DECLINED")) {
+    return NextResponse.redirect(new URL(`/inbox/${params.id}`, request.url), 303);
+  }
 
-  await prisma.messageThread.update({
-    where: { id: params.id },
-    data: { status: accepted ? "ACTIVE" : "DECLINED", requiresAcceptance: !accepted }
-  });
-
-  await prisma.message.create({
-    data: {
-      threadId: params.id,
-      senderUserId: user.id,
-      body: accepted ? "Message request accepted." : "Message request declined.",
-      type: accepted ? "ACCEPT" : "DECLINE"
-    }
-  });
+  await prisma.$transaction([
+    prisma.messageThread.update({
+      where: { id: params.id },
+      data: { status: accepted ? "ACTIVE" : "DECLINED", requiresAcceptance: !accepted }
+    }),
+    prisma.message.create({
+      data: {
+        threadId: params.id,
+        senderUserId: user.id,
+        body: accepted ? "Message request accepted." : "Message request declined.",
+        type: accepted ? "ACCEPT" : "DECLINE"
+      }
+    })
+  ]);
 
   return NextResponse.redirect(new URL(`/inbox/${params.id}`, request.url), 303);
 }

@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { FormAlert } from "@/components/form-alert";
 
-export default function SignInPage() {
+export default function SignInPage({ searchParams }: { searchParams?: { error?: string } }) {
   return (
     <PageShell className="max-w-2xl">
       <Card>
@@ -14,6 +15,7 @@ export default function SignInPage() {
           <CardDescription>Continue into your volunteer or organization dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
+          <FormAlert code={searchParams?.error} />
           <form action="/api/auth/signin" method="post" className="space-y-4">
             <div className="grid gap-2">
               <label className="text-sm font-medium">Email</label>

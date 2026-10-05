@@ -8,6 +8,8 @@ import { TaskCard } from "@/components/task-card";
 import { ThreadCard } from "@/components/thread-card";
 import { ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { trustSubmissionSelect, volunteerTrust } from "@/lib/trust";
+import { HrToolsPanel } from "@/components/ai/hr-tools";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +25,7 @@ export default async function OrganizationDashboardPage() {
     );
   }
 
-  const [tasks, submissions, shortlist, threads, volunteers] = await Promise.all([
+  const [tasks, submissions, shortlist, threads, threadCount, volunteers] = await Promise.all([
     prisma.task.findMany({
       where: { organizationId: user.organizationProfile.id },
       include: { organization: true, taskSkills: { include: { skill: true } } },
@@ -31,7 +33,12 @@ export default async function OrganizationDashboardPage() {
     }),
     prisma.submission.findMany({
       where: { task: { organizationId: user.organizationProfile.id } },
-      include: { task: true, volunteerProfile: true, rating: true },
+      select: {
+        id: true,
+        status: true,
+        task: { select: { title: true } },
+        volunteerProfile: { select: { fullName: true } }
+      },
       orderBy: { createdAt: "desc" }
     }),
     prisma.shortlist.findMany({
@@ -44,18 +51,36 @@ export default async function OrganizationDashboardPage() {
       include: {
         volunteerProfile: true,
         organizationProfile: true,
-        messages: { orderBy: { createdAt: "asc" } }
+        messages: { orderBy: { createdAt: "desc" }, take: 1 }
       },
       orderBy: { updatedAt: "desc" },
       take: 3
     }),
+    prisma.messageThread.count({ where: { organizationProfileId: user.organizationProfile.id } }),
     prisma.volunteerProfile.findMany({
       where: { discoverable: true },
-      include: { skills: { include: { skill: true } }, badges: { include: { badge: true } } },
+      include: {
+        skills: { include: { skill: true } },
+        badges: { include: { badge: true } },
+        submissions: { select: trustSubmissionSelect },
+        _count: { select: { portfolioItems: true } }
+      },
       take: 3,
       orderBy: { impactScore: "desc" }
     })
   ]);
+
+  const volunteersWithTrust = volunteers.map(({ submissions, _count, ...volunteer }) => {
+    const trust = volunteerTrust({
+      completedTasks: _count.portfolioItems,
+      badgeCount: volunteer.badges.length,
+      verified: volunteer.verified,
+      submissions
+    });
+    return { ...volunteer, trustScore: trust.trustScore, trustLabel: trust.trustLabel };
+  });
+
+  const featuredVolunteer = volunteersWithTrust[0] ?? null;
 
   return (
     <PageShell className="space-y-8">
@@ -68,10 +93,13 @@ export default async function OrganizationDashboardPage() {
         <CardContent className="grid gap-6 p-6 lg:grid-cols-[1.15fr,0.85fr] lg:items-center">
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-[color:rgba(21,228,2,0.12)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[color:rgb(21,160,2)]">
+                AI-powered
+              </span>
               <span className="rounded-full bg-[color:rgba(45,138,227,0.12)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[color:hsl(var(--brand-blue))]">
                 Post work
               </span>
-              <span className="rounded-full bg-[color:rgba(21,228,2,0.12)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[color:rgb(21,160,2)]">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
                 Fast start
               </span>
             </div>
@@ -106,6 +134,7 @@ export default async function OrganizationDashboardPage() {
           </div>
         </CardContent>
       </Card>
+
       <div className="flex flex-wrap gap-3">
         <ButtonLink href="/organization/tasks/new">Post work</ButtonLink>
         <ButtonLink href="/organization/submissions" variant="outline">
@@ -121,70 +150,129 @@ export default async function OrganizationDashboardPage() {
           Profile
         </ButtonLink>
       </div>
+
       <div className="grid gap-4 md:grid-cols-4">
         <StatsCard title="Live tasks" value={`${tasks.length}`} />
         <StatsCard title="Submissions" value={`${submissions.length}`} />
         <StatsCard title="Shortlisted" value={`${shortlist.length}`} />
-        <StatsCard title="Threads" value={`${threads.length}`} />
+        <StatsCard title="Threads" value={`${threadCount}`} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <SectionHeading title="Posted tasks" />
-          <div className="grid gap-4">
-            {tasks.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-          </div>
+          {tasks.length ? (
+            <div className="grid gap-4">
+              {tasks.map((task) => (
+                <TaskCard key={task.id} task={task} />
+              ))}
+            </div>
+          ) : (
+            <Card className="border-dashed border-slate-300 bg-slate-50">
+              <CardContent className="space-y-3 p-6">
+                <p className="text-base font-semibold text-slate-950">No work posted yet.</p>
+                <p className="text-sm leading-6 text-slate-600">
+                  Start with a simple brief and Vibd will structure it into a task volunteers can understand quickly.
+                </p>
+                <ButtonLink href="/organization/tasks/new">Post your first work brief</ButtonLink>
+              </CardContent>
+            </Card>
+          )}
         </div>
         <div className="space-y-4">
           <SectionHeading title="Recommended volunteers" />
-          <div className="space-y-4">
-            {volunteers.map((volunteer) => (
-              <Card key={volunteer.id}>
-                <CardContent className="space-y-2 p-4">
-                  <p className="font-medium text-slate-950">{volunteer.fullName}</p>
-                  <p className="text-sm text-slate-500">{volunteer.impactScore} impact score</p>
-                  <p className="text-sm text-slate-600 line-clamp-3">{volunteer.bio}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {volunteersWithTrust.length ? (
+            <div className="space-y-4">
+              {volunteersWithTrust.map((volunteer) => (
+                <Card key={volunteer.id}>
+                  <CardContent className="space-y-2 p-4">
+                    <p className="font-medium text-slate-950">{volunteer.fullName}</p>
+                    <p className="text-sm text-slate-500">{volunteer.impactScore} impact score</p>
+                    <p className="text-sm text-slate-500">
+                      {volunteer.trustLabel} · {volunteer.trustScore}/100 trust
+                    </p>
+                    <p className="text-sm text-slate-600 line-clamp-3">{volunteer.bio}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="border-dashed border-slate-300 bg-slate-50">
+              <CardContent className="space-y-3 p-6">
+                <p className="text-base font-semibold text-slate-950">No recommendations yet.</p>
+                <p className="text-sm leading-6 text-slate-600">
+                  Post a task or broaden your filters and Vibd will surface volunteers with the right trust and skill signals.
+                </p>
+                <ButtonLink href="/organization/discover" variant="outline">
+                  Open talent search
+                </ButtonLink>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
+
+      {featuredVolunteer ? (
+        <Card className="border-[color:rgba(45,138,227,0.18)] bg-[linear-gradient(180deg,rgba(45,138,227,0.06),rgba(255,255,255,1))]">
+          <CardContent className="space-y-4 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">AI HR toolkit</p>
+                <h3 className="text-lg font-semibold text-slate-950">{featuredVolunteer.fullName}</h3>
+                <p className="text-sm text-slate-500">
+                  {featuredVolunteer.trustLabel} · {featuredVolunteer.trustScore}/100 trust
+                </p>
+              </div>
+              <ButtonLink href="/organization/discover" variant="outline">
+                See more candidates
+              </ButtonLink>
+            </div>
+            <HrToolsPanel volunteerProfileId={featuredVolunteer.id} volunteerName={featuredVolunteer.fullName} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardContent className="space-y-4 p-6">
             <h3 className="text-lg font-semibold">Recent submissions</h3>
-            <div className="space-y-3">
-              {submissions.map((submission) => (
-                <div key={submission.id} className="rounded-2xl border border-slate-200 p-4">
-                  <p className="font-medium">{submission.task.title}</p>
-                  <p className="text-sm text-slate-500">By {submission.volunteerProfile.fullName}</p>
-                  <p className="text-sm text-slate-600">{submission.status.toLowerCase()}</p>
-                </div>
-              ))}
-            </div>
+            {submissions.length ? (
+              <div className="space-y-3">
+                {submissions.map((submission) => (
+                  <div key={submission.id} className="rounded-2xl border border-slate-200 p-4">
+                    <p className="font-medium">{submission.task.title}</p>
+                    <p className="text-sm text-slate-500">By {submission.volunteerProfile.fullName}</p>
+                    <p className="text-sm text-slate-600">{submission.status.toLowerCase()}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">
+                No submissions yet. They will appear here as soon as volunteers start sending work back.
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="space-y-4 p-6">
             <h3 className="text-lg font-semibold">Shortlisted volunteers</h3>
-            <div className="space-y-3">
-              {shortlist.map((entry) => (
-                <div key={entry.id} className="rounded-2xl border border-slate-200 p-4">
-                  <p className="font-medium">{entry.volunteerProfile.fullName}</p>
-                  <p className="text-sm text-slate-500">{entry.note ?? "Shortlisted for follow-up."}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {entry.volunteerProfile.badges.map((badge) => (
-                      <Badge key={badge.id}>{badge.badge.name}</Badge>
-                    ))}
+            {shortlist.length ? (
+              <div className="space-y-3">
+                {shortlist.map((entry) => (
+                  <div key={entry.id} className="rounded-2xl border border-slate-200 p-4">
+                    <p className="font-medium">{entry.volunteerProfile.fullName}</p>
+                    <p className="text-sm text-slate-500">{entry.note ?? "Shortlisted for follow-up."}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {entry.volunteerProfile.badges.map((badge) => (
+                        <Badge key={badge.id}>{badge.badge.name}</Badge>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-              {shortlist.length === 0 ? <p className="text-sm text-slate-500">No shortlisted volunteers yet.</p> : null}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No shortlisted volunteers yet.</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -193,11 +281,17 @@ export default async function OrganizationDashboardPage() {
         <Card>
           <CardContent className="space-y-4 p-6">
             <h3 className="text-lg font-semibold">Inbox</h3>
-            <div className="space-y-4">
-              {threads.map((thread) => (
-                <ThreadCard key={thread.id} thread={thread} />
-              ))}
-            </div>
+            {threads.length ? (
+              <div className="space-y-4">
+                {threads.map((thread) => (
+                  <ThreadCard key={thread.id} thread={thread} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">
+                No message threads yet. Reach out from discovery or invite a volunteer to start the conversation.
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>

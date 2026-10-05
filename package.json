@@ -11,7 +11,8 @@
     "prisma:generate": "prisma generate",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "node prisma/seed-runner.mjs"
+    "prisma:seed": "node prisma/seed-runner.mjs",
+    "org:verify": "node prisma/verify-organization.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

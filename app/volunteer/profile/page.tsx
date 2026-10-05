@@ -33,7 +33,7 @@ export default async function VolunteerProfilePage() {
       portfolioItems: {
         include: {
           task: { include: { organization: true } },
-          submission: { include: { rating: true } }
+          submission: { select: { rating: true } }
         },
         orderBy: { completedAt: "desc" }
       }

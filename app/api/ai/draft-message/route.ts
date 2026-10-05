@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { aiRateLimited } from "@/lib/rate-limit";
 import { draftMessage } from "@/lib/ai";
 import { prisma } from "@/lib/db";
 
@@ -8,6 +9,8 @@ export async function POST(request: Request) {
   if (!user?.organizationProfile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = aiRateLimited(user.id);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => null);
   if (!body?.volunteerProfileId) {
@@ -22,7 +25,7 @@ export async function POST(request: Request) {
       portfolioItems: {
         include: {
           task: { include: { organization: true } },
-          submission: { include: { rating: true } }
+          submission: { select: { rating: true } }
         },
         orderBy: { completedAt: "desc" },
         take: 3
@@ -49,10 +52,10 @@ export async function POST(request: Request) {
     taskTitle: task?.title ?? null,
     taskDescription: task?.description ?? null,
     taskSkills: task?.taskSkills.map((item) => item.skill.name) ?? [],
-    extraContext: String(body.extraContext || "").trim(),
-    goal: String(body.goal || "Invite the volunteer to continue the conversation."),
-    tone: String(body.tone || "warm"),
-    priorRelationship: String(body.priorRelationship || "")
+    extraContext: String(body.extraContext || "").trim().slice(0, 2000),
+    goal: String(body.goal || "Invite the volunteer to continue the conversation.").slice(0, 500),
+    tone: String(body.tone || "warm").slice(0, 40),
+    priorRelationship: String(body.priorRelationship || "").slice(0, 500)
   });
 
   return NextResponse.json({ draft });

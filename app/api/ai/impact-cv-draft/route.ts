@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { aiRateLimited } from "@/lib/rate-limit";
 import { prisma } from "@/lib/db";
 import { generateImpactCv } from "@/lib/ai";
 
@@ -8,6 +9,8 @@ export async function POST() {
   if (!user?.volunteerProfile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = aiRateLimited(user.id);
+  if (limited) return limited;
 
   const profile = await prisma.volunteerProfile.findUnique({
     where: { id: user.volunteerProfile.id },
@@ -17,7 +20,7 @@ export async function POST() {
       portfolioItems: {
         include: {
           task: { include: { organization: true } },
-          submission: { include: { rating: true } }
+          submission: { select: { rating: true } }
         },
         orderBy: { completedAt: "desc" }
       }

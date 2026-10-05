@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { recommendTasks } from "@/lib/ai";
+import { trustSubmissionSelect, volunteerTrust } from "@/lib/trust";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +39,11 @@ export default async function VolunteerDashboardPage() {
     }),
     prisma.submission.findMany({
       where: { volunteerProfileId: user.volunteerProfile.id },
-      include: { task: { include: { organization: true, taskSkills: { include: { skill: true } } } }, rating: true },
+      select: {
+        ...trustSubmissionSelect,
+        id: true,
+        task: { select: { title: true, deadline: true, createdAt: true, organization: { select: { name: true } } } }
+      },
       orderBy: { createdAt: "desc" }
     }),
     prisma.messageThread.findMany({
@@ -46,21 +51,31 @@ export default async function VolunteerDashboardPage() {
       include: {
         volunteerProfile: true,
         organizationProfile: true,
-        messages: { orderBy: { createdAt: "asc" } }
+        messages: { orderBy: { createdAt: "desc" }, take: 1 }
       },
       orderBy: { updatedAt: "desc" },
       take: 3
     })
   ]);
 
+  // Same definition of "completed" (accepted portfolio work) that organizations see in discovery.
+  const trustStats = volunteerTrust({
+    completedTasks: user.volunteerProfile.portfolioItems.length,
+    badgeCount: user.volunteerProfile.badges.length,
+    verified: user.volunteerProfile.verified,
+    submissions
+  });
+
   const recommendations = await recommendTasks({
     volunteer: user.volunteerProfile,
-    tasks: openTasks
+    tasks: openTasks,
+    trustScore: trustStats.trustScore
   });
   const taskById = new Map(openTasks.map((task) => [task.id, task]));
 
   const activeTasks = applications.filter((application) => application.status === "SHORTLISTED").map((application) => application.task);
   const acceptedSubmissions = submissions.filter((submission) => submission.status === "ACCEPTED");
+  const hasRecommendations = recommendations.length > 0;
 
   return (
     <PageShell className="space-y-8">
@@ -80,12 +95,13 @@ export default async function VolunteerDashboardPage() {
         <ButtonLink href="/volunteer/inbox" variant="secondary">
           Inbox
         </ButtonLink>
-        <ButtonLink href="/marketplace" variant="outline">
+        <ButtonLink href="/discover" variant="outline">
           Explore workboard
         </ButtonLink>
       </div>
       <div className="grid gap-4 md:grid-cols-4">
         <StatsCard title="Impact score" value={`${user.volunteerProfile.impactScore}`} />
+        <StatsCard title="Trust score" value={`${trustStats.trustScore}`} />
         <StatsCard title="Rank" value={user.volunteerProfile.ranking ? `#${user.volunteerProfile.ranking}` : "unranked"} />
         <StatsCard title="Applications" value={`${applications.length}`} />
         <StatsCard title="Submissions" value={`${submissions.length}`} />
@@ -95,49 +111,73 @@ export default async function VolunteerDashboardPage() {
         <div className="space-y-4 lg:col-span-2">
           <SectionHeading
             title="Smart recommendations"
-            description="AI ranks open work based on your profile, skills, interests, and the tasks organizations are posting."
+            description="AI ranks open work based on your profile, skills, interests, trust score, and the tasks organizations are posting."
           />
           <div className="grid gap-4">
-            {recommendations.map((recommendation) => {
-              const task = taskById.get(recommendation.taskId);
-              if (!task) return null;
-              return (
-                <Card key={recommendation.taskId} className="hover:shadow-soft">
-                  <CardContent className="space-y-3 p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate-950">{task.title}</h3>
-                        <p className="text-sm text-slate-500">By {task.organization.name}</p>
+            {hasRecommendations ? (
+              recommendations.map((recommendation) => {
+                const task = taskById.get(recommendation.taskId);
+                if (!task) return null;
+                return (
+                  <Card key={recommendation.taskId} className="hover:shadow-soft">
+                    <CardContent className="space-y-3 p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-slate-950">{task.title}</h3>
+                          <p className="text-sm text-slate-500">By {task.organization.name}</p>
+                        </div>
+                        <Badge>AI match</Badge>
                       </div>
-                      <Badge>AI match</Badge>
-                    </div>
-                    <p className="text-sm leading-6 text-slate-600">{recommendation.reason}</p>
-                    <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                      {task.taskSkills.map((item) => (
-                        <span key={item.skill.name} className="rounded-full bg-slate-100 px-2.5 py-1">
-                          {item.skill.name}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm text-slate-500">Deadline preview: {new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(task.deadline)}</p>
-                      <Link href={`/tasks/${task.id}`} className="text-sm font-medium text-slate-950 underline decoration-slate-300 underline-offset-4">
-                        View task
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      <p className="text-sm leading-6 text-slate-600">{recommendation.reason}</p>
+                      <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                        {task.taskSkills.map((item) => (
+                          <span key={item.skill.name} className="rounded-full bg-slate-100 px-2.5 py-1">
+                            {item.skill.name}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm text-slate-500">
+                          Deadline preview: {new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(task.deadline)}
+                        </p>
+                        <Link href={`/tasks/${task.id}`} className="text-sm font-medium text-slate-950 underline decoration-slate-300 underline-offset-4">
+                          View task
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            ) : (
+              <Card className="border-dashed border-slate-300 bg-slate-50">
+                <CardContent className="space-y-3 p-6">
+                  <p className="text-base font-semibold text-slate-950">No recommendations yet.</p>
+                  <p className="text-sm leading-6 text-slate-600">
+                    Fill in your profile and Vibd will surface tasks that match your skills, availability, and trust signals.
+                  </p>
+                  <ButtonLink href="/volunteer/profile">Improve my profile</ButtonLink>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
         <div className="space-y-4">
           <SectionHeading title="Inbox" description="Message requests and active threads." />
-          <div className="space-y-4">
-            {threads.map((thread) => (
-              <ThreadCard key={thread.id} thread={thread} />
-            ))}
-          </div>
+          {threads.length ? (
+            <div className="space-y-4">
+              {threads.map((thread) => (
+                <ThreadCard key={thread.id} thread={thread} />
+              ))}
+            </div>
+          ) : (
+            <Card className="border-dashed border-slate-300 bg-slate-50">
+              <CardContent className="space-y-3 p-6">
+                <p className="text-sm text-slate-600">
+                  Your inbox will appear here when organizations invite you, shortlist you, or reply to your submissions.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -145,17 +185,21 @@ export default async function VolunteerDashboardPage() {
         <Card>
           <CardContent className="space-y-4 p-6">
             <h3 className="text-lg font-semibold">Applied tasks</h3>
-            <div className="space-y-3">
-              {applications.map((application) => (
-                <div key={application.id} className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
-                  <div>
-                    <p className="font-medium text-slate-950">{application.task.title}</p>
-                    <p className="text-sm text-slate-500">{application.task.organization.name}</p>
+            {applications.length ? (
+              <div className="space-y-3">
+                {applications.map((application) => (
+                  <div key={application.id} className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
+                    <div>
+                      <p className="font-medium text-slate-950">{application.task.title}</p>
+                      <p className="text-sm text-slate-500">{application.task.organization.name}</p>
+                    </div>
+                    <p className="text-sm text-slate-500">{application.status.toLowerCase()}</p>
                   </div>
-                  <p className="text-sm text-slate-500">{application.status.toLowerCase()}</p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No applications yet. Start by applying to a few tasks that match your skills.</p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -178,28 +222,35 @@ export default async function VolunteerDashboardPage() {
         <Card>
           <CardContent className="space-y-4 p-6">
             <h3 className="text-lg font-semibold">Completed tasks</h3>
-            <div className="space-y-3">
-              {submissions.map((submission) => (
-                <div key={submission.id} className="rounded-2xl border border-slate-200 p-4">
-                  <p className="font-medium text-slate-950">{submission.task.title}</p>
-                  <p className="text-sm text-slate-500">{submission.status.toLowerCase()}</p>
-                </div>
-              ))}
-            </div>
+            {submissions.length ? (
+              <div className="space-y-3">
+                {submissions.map((submission) => (
+                  <div key={submission.id} className="rounded-2xl border border-slate-200 p-4">
+                    <p className="font-medium text-slate-950">{submission.task.title}</p>
+                    <p className="text-sm text-slate-500">{submission.status.toLowerCase()}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Completed work will appear here once your submissions are accepted.</p>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="space-y-4 p-6">
             <h3 className="text-lg font-semibold">Accepted completions</h3>
-            <div className="space-y-3">
-              {acceptedSubmissions.map((submission) => (
-                <div key={submission.id} className="rounded-2xl border border-slate-200 p-4">
-                  <p className="font-medium text-slate-950">{submission.task.title}</p>
-                  <p className="text-sm text-slate-500">{submission.task.organization.name}</p>
-                </div>
-              ))}
-              {acceptedSubmissions.length === 0 ? <p className="text-sm text-slate-500">No accepted completions yet.</p> : null}
-            </div>
+            {acceptedSubmissions.length ? (
+              <div className="space-y-3">
+                {acceptedSubmissions.map((submission) => (
+                  <div key={submission.id} className="rounded-2xl border border-slate-200 p-4">
+                    <p className="font-medium text-slate-950">{submission.task.title}</p>
+                    <p className="text-sm text-slate-500">{submission.task.organization.name}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No accepted completions yet.</p>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -7,12 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { FormAlert } from "@/components/form-alert";
 
 type Props = {
   defaultRole: "VOLUNTEER" | "ORGANIZATION";
+  error?: string;
 };
 
-export function SignupForm({ defaultRole }: Props) {
+export function SignupForm({ defaultRole, error }: Props) {
   const [role, setRole] = useState<"VOLUNTEER" | "ORGANIZATION">(defaultRole);
 
   return (
@@ -24,6 +26,7 @@ export function SignupForm({ defaultRole }: Props) {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <FormAlert code={error} />
         <form action="/api/auth/signup" method="post" className="space-y-5">
           <div className="grid gap-2">
             <label className="text-sm font-medium">{role === "ORGANIZATION" ? "Organization name" : "Full name"}</label>

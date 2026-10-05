@@ -12,18 +12,33 @@ import { Input } from "@/components/ui/input";
 import { formatDate } from "@/lib/format";
 import { SkillMatchCard } from "@/components/ai/skill-match-card";
 import { JobChatbot } from "@/components/ai/job-chatbot";
+import { taskAcceptsWork, volunteerCanViewTask } from "@/lib/task-access";
+import { isDataUrl, safeHref } from "@/lib/url";
+
+const errorMessages: Record<string, string> = {
+  closed: "This task is no longer accepting applications or submissions.",
+  summary: "Please add a short summary of your work.",
+  link: "Links must start with http:// or https://.",
+  filesize: "Files must be 2 MB or smaller. Share a link for larger files.",
+  filetype: "That file type isn't supported. Upload a PDF, Word, text, image, or zip file.",
+  accepted: "This submission was already accepted, so it can no longer be changed."
+};
 
 export const dynamic = "force-dynamic";
 
-export default async function TaskDetailPage({ params }: { params: { id: string } }) {
+export default async function TaskDetailPage({
+  params,
+  searchParams
+}: {
+  params: { id: string };
+  searchParams?: { error?: string };
+}) {
   const currentUser = await getCurrentUser();
   const task = await prisma.task.findUnique({
     where: { id: params.id },
     include: {
       organization: true,
-      taskSkills: { include: { skill: true } },
-      applications: { include: { volunteerProfile: true } },
-      submissions: { include: { volunteerProfile: true, rating: true } }
+      taskSkills: { include: { skill: true } }
     }
   });
 
@@ -38,7 +53,7 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
             portfolioItems: {
               include: {
                 task: { include: { organization: true } },
-                submission: { include: { rating: true } }
+                submission: { select: { rating: true } }
               },
               orderBy: { completedAt: "desc" }
             }
@@ -46,8 +61,10 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
         })
       : null;
   const orgUser = currentUser?.role === "ORGANIZATION" && currentUser.organizationProfile?.id === task.organizationId;
-  const publicVisible = task.visibility === "PUBLIC";
-  if (!publicVisible && !orgUser) {
+  const volunteerProfile = currentUser?.role === "VOLUNTEER" ? currentUser.volunteerProfile : null;
+  const canView =
+    task.visibility === "PUBLIC" || orgUser || (volunteerProfile ? await volunteerCanViewTask(volunteerProfile.id, task) : false);
+  if (!canView) {
     return (
       <PageShell>
         <Card>
@@ -58,13 +75,17 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
       </PageShell>
     );
   }
-  const volunteerProfile = currentUser?.role === "VOLUNTEER" ? currentUser.volunteerProfile : null;
-  const submitted = volunteerProfile
-    ? task.submissions.find((submission) => submission.volunteerProfileId === volunteerProfile.id)
-    : null;
-  const applied = volunteerProfile
-    ? task.applications.find((application) => application.volunteerProfileId === volunteerProfile.id)
-    : null;
+  const ownKey = volunteerProfile ? { taskId_volunteerProfileId: { taskId: task.id, volunteerProfileId: volunteerProfile.id } } : null;
+  const [submitted, applied] = ownKey
+    ? await Promise.all([
+        prisma.submission.findUnique({ where: ownKey, select: { status: true, attachmentUrl: true } }),
+        prisma.taskApplication.findUnique({ where: ownKey, select: { status: true } })
+      ])
+    : [null, null];
+  const acceptsWork = taskAcceptsWork(task);
+  const submissionLocked = submitted?.status === "ACCEPTED";
+  const attachmentHref = safeHref(submitted?.attachmentUrl);
+  const errorMessage = searchParams?.error ? errorMessages[searchParams.error] ?? "Something went wrong. Please try again." : null;
 
   return (
     <PageShell className="space-y-8">
@@ -78,7 +99,13 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
         <Badge>{task.rewardType.toLowerCase()}</Badge>
         <Badge>{task.visibility.toLowerCase()}</Badge>
         {task.stipendAmount ? <Badge>${task.stipendAmount} stipend</Badge> : null}
+        {!acceptsWork ? <Badge>{task.status.toLowerCase().replace("_", " ")}</Badge> : null}
       </div>
+      {errorMessage ? (
+        <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {errorMessage}
+        </p>
+      ) : null}
       <Card>
         <CardContent className="space-y-4 p-6">
           <p className="text-sm leading-7 text-slate-700">{task.description}</p>
@@ -140,29 +167,46 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
             <Card>
               <CardContent className="space-y-4 p-6">
                 <h3 className="text-lg font-semibold">Apply to this task</h3>
-                <form action={`/api/tasks/${task.id}/apply`} method="post" className="space-y-4">
-                  <Textarea name="note" placeholder="Tell the organization why you're a fit" />
-                  <Button type="submit" className="w-full">
-                    {applied ? "Update application" : "Apply"}
-                  </Button>
-                </form>
+                {acceptsWork ? (
+                  <form action={`/api/tasks/${task.id}/apply`} method="post" className="space-y-4">
+                    <Textarea name="note" placeholder="Tell the organization why you're a fit" maxLength={2000} />
+                    <Button type="submit" className="w-full">
+                      {applied ? "Update application" : "Apply"}
+                    </Button>
+                  </form>
+                ) : (
+                  <p className="text-sm text-slate-500">This task is closed to new applications.</p>
+                )}
                 {applied ? <p className="text-sm text-slate-500">Current status: {applied.status.toLowerCase()}</p> : null}
               </CardContent>
             </Card>
             <Card>
               <CardContent className="space-y-4 p-6">
                 <h3 className="text-lg font-semibold">Submit work</h3>
-                <form action={`/api/tasks/${task.id}/submit`} method="post" encType="multipart/form-data" className="space-y-4">
-                  <Textarea name="textSummary" placeholder="Summarize your work" required />
-                  <Input name="attachmentUrl" placeholder="Link to your file, if you have one" />
-                  <Input name="assignmentFile" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
-                  <Button type="submit" className="w-full">
-                    {submitted ? "Update submission" : "Submit work"}
-                  </Button>
-                </form>
+                {acceptsWork && !submissionLocked ? (
+                  <form action={`/api/tasks/${task.id}/submit`} method="post" encType="multipart/form-data" className="space-y-4">
+                    <Textarea name="textSummary" placeholder="Summarize your work" required maxLength={10000} />
+                    <Input name="attachmentUrl" type="url" placeholder="https:// link to your file, if you have one" />
+                    <Input name="assignmentFile" type="file" accept=".pdf,.doc,.docx,.pptx,.xlsx,.txt,.zip,.png,.jpg,.jpeg,.gif,.webp" />
+                    <p className="text-xs text-slate-500">Uploads up to 2 MB. Share a link for anything larger.</p>
+                    <Button type="submit" className="w-full">
+                      {submitted ? "Update submission" : "Submit work"}
+                    </Button>
+                  </form>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    {submissionLocked ? "Your submission was accepted." : "This task is closed to new submissions."}
+                  </p>
+                )}
                 {submitted ? <p className="text-sm text-slate-500">Current status: {submitted.status.toLowerCase()}</p> : null}
-                {submitted?.attachmentUrl ? (
-                  <a href={submitted.attachmentUrl} className="text-sm font-medium text-[color:hsl(var(--brand-blue))]" target="_blank" rel="noreferrer">
+                {attachmentHref ? (
+                  <a
+                    href={attachmentHref}
+                    download={isDataUrl(attachmentHref) ? "assignment" : undefined}
+                    className="text-sm font-medium text-[color:hsl(var(--brand-blue))]"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
                     Open uploaded assignment
                   </a>
                 ) : null}

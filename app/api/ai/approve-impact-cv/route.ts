@@ -2,20 +2,20 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { aiRateLimited } from "@/lib/rate-limit";
 import { prisma } from "@/lib/db";
 import { approveImpactCv } from "@/lib/ai";
 
 function toList(value: unknown) {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim()).filter(Boolean);
-  }
-  if (typeof value === "string") {
-    return value
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-  return [];
+  const items = Array.isArray(value) ? value.map(String) : typeof value === "string" ? value.split("\n") : [];
+  return items
+    .map((item) => item.trim().slice(0, 300))
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
+function toText(value: unknown, maxLength: number) {
+  return String(value || "").trim().slice(0, maxLength);
 }
 
 function textArraySql(values: string[]) {
@@ -30,6 +30,8 @@ export async function POST(request: Request) {
   if (!user?.volunteerProfile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = aiRateLimited(user.id);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => null);
   const draft = body?.draft;
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
       portfolioItems: {
         include: {
           task: { include: { organization: true } },
-          submission: { include: { rating: true } }
+          submission: { select: { rating: true } }
         },
         orderBy: { completedAt: "desc" }
       }
@@ -80,13 +82,13 @@ export async function POST(request: Request) {
       }))
     },
     draft: {
-      headline: String(draft.headline || "").trim(),
-      summary: String(draft.summary || "").trim(),
+      headline: toText(draft.headline, 200),
+      summary: toText(draft.summary, 2000),
       topSkills: toList(draft.topSkills),
       proofPoints: toList(draft.proofPoints),
       impactHighlights: toList(draft.impactHighlights),
       metrics: toList(draft.metrics),
-      suggestedTitle: String(draft.suggestedTitle || `Impact CV for ${profile.fullName}`).trim()
+      suggestedTitle: toText(draft.suggestedTitle || `Impact CV for ${profile.fullName}`, 200)
     }
   });
 

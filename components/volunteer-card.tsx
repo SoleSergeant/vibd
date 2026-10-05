@@ -12,6 +12,8 @@ export function VolunteerCard({
     headline: string | null;
     bio: string;
     impactScore: number;
+    trustScore?: number;
+    trustLabel?: string;
     ranking: number;
     opportunityStatus: string;
     discoverable: boolean;
@@ -21,6 +23,13 @@ export function VolunteerCard({
   };
   actions?: React.ReactNode;
 }) {
+  const statusBits = [
+    volunteer.trustScore != null ? `${volunteer.trustLabel ?? "Trust"} ${volunteer.trustScore}/100` : null,
+    `Impact ${volunteer.impactScore}`,
+    volunteer.opportunityStatus.toLowerCase().replaceAll("_", " "),
+    volunteer.location
+  ].filter(Boolean) as string[];
+
   return (
     <Card className="h-full transition hover:-translate-y-0.5 hover:shadow-soft">
       <CardContent className="space-y-4">
@@ -40,18 +49,18 @@ export function VolunteerCard({
           ))}
         </div>
         <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-          <span>Impact {volunteer.impactScore}</span>
-          <span>•</span>
-          <span>{volunteer.opportunityStatus.toLowerCase().replaceAll("_", " ")}</span>
-          {volunteer.location ? (
-            <>
-              <span>•</span>
-              <span>{volunteer.location}</span>
-            </>
-          ) : null}
+          {statusBits.map((bit, index) => (
+            <span key={`${bit}-${index}`} className="flex items-center gap-2">
+              {index > 0 ? <span aria-hidden="true">·</span> : null}
+              <span>{bit}</span>
+            </span>
+          ))}
         </div>
         {actions ? <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">{actions}</div> : null}
-        <Link href={`/volunteer/profile?profile=${volunteer.id}`} className="text-sm font-medium text-slate-950 underline decoration-slate-300 underline-offset-4">
+        <Link
+          href={`/cv/${volunteer.id}`}
+          className="text-sm font-medium text-slate-950 underline decoration-slate-300 underline-offset-4"
+        >
           Open profile
         </Link>
       </CardContent>

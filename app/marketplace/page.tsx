@@ -5,6 +5,7 @@ import { TaskCard } from "@/components/task-card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,17 @@ export default async function MarketplacePage({
         description="Search by category and difficulty, then open a task to apply or submit work."
       />
 
+      <Card className="border-[color:rgba(45,138,227,0.18)] bg-[linear-gradient(180deg,rgba(45,138,227,0.06),rgba(255,255,255,1))]">
+        <CardContent className="flex flex-wrap items-center gap-2 p-5">
+          <span className="rounded-full bg-[color:rgba(21,228,2,0.12)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[color:rgb(21,160,2)]">
+            AI-powered
+          </span>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+            Filter by skills, reward, and difficulty
+          </span>
+        </CardContent>
+      </Card>
+
       <form className="grid gap-3 rounded-3xl border border-slate-200 bg-white p-4 lg:grid-cols-5" method="get">
         <Input name="q" defaultValue={searchParams?.q} placeholder="Search tasks" className="lg:col-span-2" />
         <Input name="category" defaultValue={searchParams?.category} placeholder="Category" />
@@ -67,11 +79,19 @@ export default async function MarketplacePage({
       </form>
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} />
-        ))}
+        {tasks.length ? (
+          tasks.map((task) => <TaskCard key={task.id} task={task} />)
+        ) : (
+          <Card className="border-dashed border-slate-300 bg-slate-50">
+            <CardContent className="space-y-3 p-6">
+              <p className="text-base font-semibold text-slate-950">No tasks matched your filters yet.</p>
+              <p className="text-sm leading-6 text-slate-600">
+                Try a broader search or different reward type. Vibd will keep the workboard readable even when the filter set is narrow.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
-      {tasks.length === 0 ? <p className="text-sm text-slate-500">No work cards matched your filters yet.</p> : null}
     </PageShell>
   );
 }

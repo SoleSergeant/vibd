@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 import { generateImpactCv } from "@/lib/ai";
 import { ImpactCvEditor } from "@/components/ai/impact-cv-editor";
+import { trustSubmissionSelect, volunteerTrust } from "@/lib/trust";
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +30,11 @@ export default async function VolunteerCvPage() {
       portfolioItems: {
         include: {
           task: { include: { organization: true } },
-          submission: { include: { rating: true } }
+          submission: { select: { rating: true } }
         },
         orderBy: { completedAt: "desc" }
-      }
+      },
+      submissions: { select: trustSubmissionSelect }
     }
   });
 
@@ -45,6 +47,13 @@ export default async function VolunteerCvPage() {
       </PageShell>
     );
   }
+
+  const trustStats = volunteerTrust({
+    completedTasks: profile.portfolioItems.length,
+    badgeCount: profile.badges.length,
+    verified: profile.verified,
+    submissions: profile.submissions
+  });
 
   const generatedCv = await generateImpactCv({
     volunteer: {
@@ -67,7 +76,9 @@ export default async function VolunteerCvPage() {
         feedback: item.feedback,
         rating: item.rating ?? 0,
         completedAt: item.completedAt
-      }))
+      })),
+      trustScore: trustStats.trustScore,
+      trustLabel: trustStats.trustLabel
     }
   });
 
@@ -101,12 +112,22 @@ export default async function VolunteerCvPage() {
         title="Your verified work, rewritten as hiring proof."
         description="Edit the story, keep the numbers, and let AI approve the final version before you use it."
       />
-      <div className="flex flex-wrap gap-3">
-        <ButtonLink href="/volunteer/profile">Back to profile</ButtonLink>
-        <ButtonLink href="/marketplace" variant="outline">
-          Find more work
-        </ButtonLink>
-      </div>
+      <Card className="border-[color:rgba(45,138,227,0.18)] bg-[linear-gradient(180deg,rgba(45,138,227,0.06),rgba(255,255,255,1))]">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">AI-powered</p>
+            <p className="text-sm leading-6 text-slate-600">
+              Built from verified submissions, ratings, trust score, and portfolio history so the story always has proof behind it.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <ButtonLink href="/volunteer/profile">Back to profile</ButtonLink>
+            <ButtonLink href="/discover" variant="outline">
+              Find more work
+            </ButtonLink>
+          </div>
+        </CardContent>
+      </Card>
 
       <ImpactCvEditor
         profile={{

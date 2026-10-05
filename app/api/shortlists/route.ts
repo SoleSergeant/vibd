@@ -10,8 +10,15 @@ export async function POST(request: Request) {
   }
 
   const form = await request.formData();
-  const volunteerProfileId = formValue(form.get("volunteerProfileId"));
-  const note = formValue(form.get("note")) || null;
+  const volunteerProfileId = formValue(form.get("volunteerProfileId"), 64);
+  const note = formValue(form.get("note"), 1000) || null;
+
+  const volunteer = volunteerProfileId
+    ? await prisma.volunteerProfile.findUnique({ where: { id: volunteerProfileId }, select: { id: true } })
+    : null;
+  if (!volunteer) {
+    return NextResponse.redirect(new URL("/discover?error=volunteer", request.url), 303);
+  }
 
   await prisma.shortlist.upsert({
     where: {

@@ -57,11 +57,11 @@ export default async function EditTaskPage({ params }: { params: { id: string } 
               <form id="task-edit-form" action={`/api/tasks/${task.id}/update`} method="post" className="space-y-5">
                 <div className="grid gap-2">
                   <label className="text-sm font-medium text-slate-900">Title</label>
-                  <Input name="title" defaultValue={task.title} />
+                  <Input name="title" defaultValue={task.title} required maxLength={200} />
                 </div>
                 <div className="grid gap-2">
                   <label className="text-sm font-medium text-slate-900">Description</label>
-                  <Textarea name="description" defaultValue={task.description} />
+                  <Textarea name="description" defaultValue={task.description} required />
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="grid gap-2">

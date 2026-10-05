@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { formatDate } from "@/lib/format";
+import { AttachmentLink } from "@/components/attachment-link";
 
 export const dynamic = "force-dynamic";
 
@@ -42,26 +43,23 @@ export default async function SubmissionsPage() {
                 <p className="text-sm text-slate-500">{submission.status.toLowerCase()}</p>
               </div>
               <p className="text-sm leading-6 text-slate-600">{submission.textSummary}</p>
-              {submission.attachmentUrl ? (
-                <a
-                  href={submission.attachmentUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm font-medium text-[color:hsl(var(--brand-blue))]"
-                >
-                  View uploaded assignment
-                </a>
-              ) : null}
+              <AttachmentLink url={submission.attachmentUrl}>View uploaded assignment</AttachmentLink>
               <p className="text-xs text-slate-500">Submitted {formatDate(submission.createdAt)}</p>
               <form action={`/api/submissions/${submission.id}/review`} method="post" className="grid gap-3 md:grid-cols-4">
-                <Input name="quality" type="number" min="1" max="5" placeholder="Quality" />
-                <Input name="communication" type="number" min="1" max="5" placeholder="Communication" />
-                <Input name="speed" type="number" min="1" max="5" placeholder="Speed" />
+                <Input name="quality" type="number" min="1" max="5" placeholder="Quality" defaultValue={submission.rating?.quality} />
+                <Input name="communication" type="number" min="1" max="5" placeholder="Communication" defaultValue={submission.rating?.communication} />
+                <Input name="speed" type="number" min="1" max="5" placeholder="Speed" defaultValue={submission.rating?.speed} />
                 <Select name="status" defaultValue={submission.status}>
-                  <option value="SUBMITTED">Submitted</option>
-                  <option value="NEEDS_REVISION">Needs revision</option>
-                  <option value="ACCEPTED">Accepted</option>
-                  <option value="REJECTED">Rejected</option>
+                  {submission.status === "ACCEPTED" ? (
+                    <option value="ACCEPTED">Accepted (final)</option>
+                  ) : (
+                    <>
+                      <option value="SUBMITTED">Submitted</option>
+                      <option value="NEEDS_REVISION">Needs revision</option>
+                      <option value="ACCEPTED">Accepted</option>
+                      <option value="REJECTED">Rejected</option>
+                    </>
+                  )}
                 </Select>
                 <Textarea name="feedback" placeholder="Feedback" className="md:col-span-4" />
                 <Button type="submit" className="md:col-span-4">

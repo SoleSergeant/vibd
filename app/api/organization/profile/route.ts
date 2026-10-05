@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formValue } from "@/lib/forms";
+import { sanitizeUserUrl } from "@/lib/url";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -13,11 +14,11 @@ export async function POST(request: Request) {
   await prisma.organizationProfile.update({
     where: { id: user.organizationProfile.id },
     data: {
-      name: formValue(form.get("name")) || user.organizationProfile.name,
-      description: formValue(form.get("description")) || user.organizationProfile.description,
-      industry: formValue(form.get("industry")) || user.organizationProfile.industry,
-      location: formValue(form.get("location")) || user.organizationProfile.location,
-      website: formValue(form.get("website")) || null
+      name: formValue(form.get("name"), 120) || user.organizationProfile.name,
+      description: formValue(form.get("description"), 2000) || user.organizationProfile.description,
+      industry: formValue(form.get("industry"), 120) || user.organizationProfile.industry,
+      location: formValue(form.get("location"), 120) || user.organizationProfile.location,
+      website: sanitizeUserUrl(formValue(form.get("website"), 500))
     }
   });
 

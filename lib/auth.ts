@@ -1,13 +1,15 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
-import { verifySession } from "@/lib/security";
+import { SESSION_COOKIE, verifySession } from "@/lib/security";
 
 export async function getCurrentSession() {
-  const token = cookies().get("vibedwork_session")?.value;
+  const token = cookies().get(SESSION_COOKIE)?.value;
   return verifySession(token);
 }
 
-export async function getCurrentUser() {
+// Deduplicated per request: the site header and the page both ask for the current user.
+export const getCurrentUser = cache(async () => {
   const session = await getCurrentSession();
   if (!session) return null;
   return prisma.user.findUnique({
@@ -23,7 +25,7 @@ export async function getCurrentUser() {
       organizationProfile: true
     }
   });
-}
+});
 
 export async function requireUser() {
   const user = await getCurrentUser();

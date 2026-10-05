@@ -6,13 +6,14 @@ export default function SignUpPage({
 }: {
   searchParams?: {
     role?: string;
+    error?: string;
   };
 }) {
   const defaultRole = searchParams?.role === "organization" ? "ORGANIZATION" : "VOLUNTEER";
 
   return (
     <PageShell className="max-w-3xl">
-      <SignupForm defaultRole={defaultRole} />
+      <SignupForm defaultRole={defaultRole} error={searchParams?.error} />
     </PageShell>
   );
 }

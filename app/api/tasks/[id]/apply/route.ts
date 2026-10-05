@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formValue } from "@/lib/forms";
+import { taskAcceptsWork, volunteerCanViewTask } from "@/lib/task-access";
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const user = await getCurrentUser();
@@ -9,45 +10,34 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.redirect(new URL("/signin", request.url), 303);
   }
 
-  const task = await prisma.task.findUnique({ where: { id: params.id } });
-  if (!task) {
+  const task = await prisma.task.findUnique({
+    where: { id: params.id },
+    select: { id: true, visibility: true, organizationId: true, status: true }
+  });
+  if (!task || !(await volunteerCanViewTask(user.volunteerProfile.id, task))) {
     return NextResponse.redirect(new URL("/marketplace", request.url), 303);
   }
-  if (task.visibility === "PRIVATE") {
-    const thread = await prisma.messageThread.findUnique({
-      where: {
-        volunteerProfileId_organizationProfileId: {
-          volunteerProfileId: user.volunteerProfile.id,
-          organizationProfileId: task.organizationId
-        }
-      }
-    });
-    if (!thread || thread.taskId !== task.id) {
-      return NextResponse.redirect(new URL("/marketplace", request.url), 303);
-    }
+  if (!taskAcceptsWork(task)) {
+    return NextResponse.redirect(new URL(`/tasks/${task.id}?error=closed`, request.url), 303);
   }
 
-  const form = await request.formData();
-  const note = formValue(form.get("note"));
+  const note = formValue((await request.formData()).get("note"), 2000);
 
   await prisma.taskApplication.upsert({
     where: {
       taskId_volunteerProfileId: {
-        taskId: params.id,
+        taskId: task.id,
         volunteerProfileId: user.volunteerProfile.id
       }
     },
-    update: {
-      note,
-      status: "APPLIED"
-    },
+    update: { note, status: "APPLIED" },
     create: {
-      taskId: params.id,
+      taskId: task.id,
       volunteerProfileId: user.volunteerProfile.id,
       note,
       status: "APPLIED"
     }
   });
 
-  return NextResponse.redirect(new URL(`/tasks/${params.id}`, request.url), 303);
+  return NextResponse.redirect(new URL(`/tasks/${task.id}`, request.url), 303);
 }

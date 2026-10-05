@@ -1,4 +1,4 @@
-import { PrismaClient, TaskDifficulty } from "@prisma/client";
+import { Prisma, PrismaClient, TaskDifficulty } from "@prisma/client";
 import { computeImpactScore, difficultyToScore } from "@/lib/scoring";
 
 function average(values: number[]) {
@@ -6,154 +6,107 @@ function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function difficultyWeight(difficulty: TaskDifficulty) {
-  return difficultyToScore(difficulty);
+type LeaderboardRow = Prisma.LeaderboardEntryCreateManyInput;
+
+function rankRows(
+  scores: { volunteerId: string; score: number }[],
+  scope: "OVERALL" | "SKILL" | "CATEGORY",
+  label: string,
+  skillId: string | null = null
+): LeaderboardRow[] {
+  return [...scores]
+    .sort((a, b) => b.score - a.score)
+    .map((entry, index) => ({
+      volunteerProfileId: entry.volunteerId,
+      skillId,
+      scope,
+      period: "ALL_TIME",
+      label,
+      score: entry.score,
+      rank: index + 1
+    }));
 }
 
+/**
+ * Recomputes impact scores, ranks, and every leaderboard. Reads only the columns it needs
+ * (never submission bodies or attachments) and writes everything in one transaction.
+ */
 export async function refreshVolunteerRankings(prisma: PrismaClient) {
-  await prisma.leaderboardEntry.deleteMany();
   const volunteers = await prisma.volunteerProfile.findMany({
-    include: {
-      badges: true,
+    select: {
+      id: true,
+      impactScore: true,
+      ranking: true,
+      _count: { select: { badges: true } },
+      skills: { select: { proficiency: true, skill: { select: { id: true, name: true } } } },
       portfolioItems: {
-        include: { task: true, submission: { include: { rating: true } } }
-      },
-      skills: { include: { skill: true } }
+        select: {
+          task: { select: { difficulty: true, category: true } },
+          submission: { select: { rating: { select: { quality: true, communication: true, speed: true } } } }
+        }
+      }
     }
   });
 
-  const overallScores = volunteers.map((volunteer) => {
+  const overall = volunteers.map((volunteer) => {
     const completedTasks = volunteer.portfolioItems.length;
-    const difficultyScores = volunteer.portfolioItems.map((item) => difficultyWeight(item.task.difficulty));
-    const averageRating = average(
-      volunteer.portfolioItems
-        .map((item) => item.submission.rating)
-        .filter(Boolean)
-        .map((rating) => ((rating!.quality + rating!.communication + rating!.speed) / 3))
-    ) / 5;
-    const consistency = Math.min(5, completedTasks);
+    const ratings = volunteer.portfolioItems
+      .map((item) => item.submission.rating)
+      .filter((rating): rating is NonNullable<typeof rating> => Boolean(rating))
+      .map((rating) => (rating.quality + rating.communication + rating.speed) / 3);
     const score = computeImpactScore({
       completedTasks,
-      difficultyScores,
-      averageRating,
-      consistency,
-      badgeCount: volunteer.badges.length
+      difficultyScores: volunteer.portfolioItems.map((item) => difficultyToScore(item.task.difficulty as TaskDifficulty)),
+      averageRating: average(ratings) / 5,
+      consistency: Math.min(5, completedTasks),
+      badgeCount: volunteer._count.badges
     });
-    return { volunteer, score };
+    return { volunteer, volunteerId: volunteer.id, score };
   });
+  const scoreById = new Map(overall.map((entry) => [entry.volunteerId, entry.score]));
 
-  const rankedOverall = [...overallScores].sort((a, b) => b.score - a.score);
-  for (let index = 0; index < rankedOverall.length; index += 1) {
-    const item = rankedOverall[index];
-    await prisma.volunteerProfile.update({
-      where: { id: item.volunteer.id },
-      data: {
-        impactScore: item.score,
-        ranking: index + 1
-      }
-    });
-    await prisma.leaderboardEntry.upsert({
-      where: {
-        volunteerProfileId_scope_period_label: {
-          volunteerProfileId: item.volunteer.id,
-          scope: "OVERALL",
-          period: "ALL_TIME",
-          label: "Overall"
-        }
-      },
-      create: {
-        volunteerProfileId: item.volunteer.id,
-        scope: "OVERALL",
-        period: "ALL_TIME",
-        label: "Overall",
-        score: item.score,
-        rank: index + 1
-      },
-      update: {
-        score: item.score,
-        rank: index + 1
-      }
-    });
-  }
+  const rows: LeaderboardRow[] = rankRows(overall, "OVERALL", "Overall");
 
-  const skillBuckets = new Map<string, { volunteerId: string; score: number }[]>();
+  const skillBuckets = new Map<string, { skillId: string; scores: { volunteerId: string; score: number }[] }>();
   const categoryBuckets = new Map<string, Map<string, number>>();
-
-  for (const item of overallScores) {
-    for (const skill of item.volunteer.skills) {
-      const list = skillBuckets.get(skill.skill.name) ?? [];
-      list.push({ volunteerId: item.volunteer.id, score: item.score + skill.proficiency * 10 });
-      skillBuckets.set(skill.skill.name, list);
+  for (const { volunteer, score } of overall) {
+    for (const entry of volunteer.skills) {
+      const bucket = skillBuckets.get(entry.skill.name) ?? { skillId: entry.skill.id, scores: [] };
+      bucket.scores.push({ volunteerId: volunteer.id, score: score + entry.proficiency * 10 });
+      skillBuckets.set(entry.skill.name, bucket);
     }
-    for (const portfolioItem of item.volunteer.portfolioItems) {
-      const label = portfolioItem.task.category;
-      const volunteerScores = categoryBuckets.get(label) ?? new Map<string, number>();
-      const current = volunteerScores.get(item.volunteer.id) ?? 0;
-      volunteerScores.set(item.volunteer.id, current + difficultyWeight(portfolioItem.task.difficulty));
-      categoryBuckets.set(label, volunteerScores);
+    for (const item of volunteer.portfolioItems) {
+      const bonuses = categoryBuckets.get(item.task.category) ?? new Map<string, number>();
+      bonuses.set(volunteer.id, (bonuses.get(volunteer.id) ?? 0) + difficultyToScore(item.task.difficulty as TaskDifficulty));
+      categoryBuckets.set(item.task.category, bonuses);
     }
   }
-
-  for (const [label, list] of skillBuckets) {
-    const ranked = [...list].sort((a, b) => b.score - a.score);
-    for (let index = 0; index < ranked.length; index += 1) {
-      const entry = ranked[index];
-      await prisma.leaderboardEntry.upsert({
-        where: {
-          volunteerProfileId_scope_period_label: {
-            volunteerProfileId: entry.volunteerId,
-            scope: "SKILL",
-            period: "ALL_TIME",
-            label
-          }
-        },
-        create: {
-          volunteerProfileId: entry.volunteerId,
-          scope: "SKILL",
-          period: "ALL_TIME",
-          label,
-          score: entry.score,
-          rank: index + 1
-        },
-        update: {
-          score: entry.score,
-          rank: index + 1
-        }
-      });
-    }
+  for (const [label, bucket] of skillBuckets) {
+    rows.push(...rankRows(bucket.scores, "SKILL", label, bucket.skillId));
+  }
+  for (const [label, bonuses] of categoryBuckets) {
+    const scores = [...bonuses].map(([volunteerId, bonus]) => ({ volunteerId, score: scoreById.get(volunteerId)! + bonus }));
+    rows.push(...rankRows(scores, "CATEGORY", label));
   }
 
-  for (const [label, scores] of categoryBuckets) {
-    const ranked = [...scores.entries()]
-      .map(([volunteerId, bonus]) => ({
-        volunteerId,
-        score: overallScores.find((entry) => entry.volunteer.id === volunteerId)!.score + bonus
-      }))
-      .sort((a, b) => b.score - a.score);
-    for (let index = 0; index < ranked.length; index += 1) {
-      const entry = ranked[index];
-      await prisma.leaderboardEntry.upsert({
-        where: {
-          volunteerProfileId_scope_period_label: {
-            volunteerProfileId: entry.volunteerId,
-            scope: "CATEGORY",
-            period: "ALL_TIME",
-            label
-          }
-        },
-        create: {
-          volunteerProfileId: entry.volunteerId,
-          scope: "CATEGORY",
-          period: "ALL_TIME",
-          label,
-          score: entry.score,
-          rank: index + 1
-        },
-        update: {
-          score: entry.score,
-          rank: index + 1
-        }
-      });
-    }
+  // Only touch profiles whose score or rank actually changed.
+  const rankById = new Map(rows.filter((row) => row.scope === "OVERALL").map((row) => [row.volunteerProfileId, row.rank]));
+  const changed = overall.filter(
+    ({ volunteer, score }) => volunteer.impactScore !== score || volunteer.ranking !== rankById.get(volunteer.id)
+  );
+
+  const writes: Prisma.PrismaPromise<unknown>[] = [prisma.leaderboardEntry.deleteMany(), prisma.leaderboardEntry.createMany({ data: rows })];
+  if (changed.length) {
+    const values = Prisma.join(
+      changed.map(({ volunteer, score }) => Prisma.sql`(${volunteer.id}, ${score}::int, ${rankById.get(volunteer.id)!}::int)`)
+    );
+    writes.push(prisma.$executeRaw`
+      UPDATE "VolunteerProfile" AS v
+      SET "impactScore" = data.score, "ranking" = data.rank, "updatedAt" = NOW()
+      FROM (VALUES ${values}) AS data(id, score, rank)
+      WHERE v.id = data.id
+    `);
   }
+
+  await prisma.$transaction(writes);
 }

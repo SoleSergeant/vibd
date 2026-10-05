@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { aiRateLimited } from "@/lib/rate-limit";
 import { prisma } from "@/lib/db";
 import { recommendTasks } from "@/lib/ai";
 
@@ -8,6 +9,8 @@ export async function GET() {
   if (!user?.volunteerProfile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = aiRateLimited(user.id);
+  if (limited) return limited;
 
   const tasks = await prisma.task.findMany({
     where: { visibility: "PUBLIC", status: "OPEN" },

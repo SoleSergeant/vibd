@@ -44,7 +44,7 @@ export function PublicImpactCv({ profile, cv }: Props) {
           <div>
             <CardTitle className="text-2xl">{profile.fullName}</CardTitle>
             <p className="mt-1 text-sm text-slate-600">
-              {profile.location ? `${profile.location} • ` : ""}
+              {profile.location ? `${profile.location} · ` : ""}
               {profile.availability}
             </p>
           </div>
@@ -111,14 +111,18 @@ export function PublicImpactCv({ profile, cv }: Props) {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Proof points</p>
             <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
               {cv.proofPoints.map((point) => (
-                <li key={point}>- {point}</li>
+                <li key={point} className="flex gap-2">
+                  <span aria-hidden="true">•</span>
+                  <span>{point}</span>
+                </li>
               ))}
             </ul>
           </div>
           <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">What this says</p>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              This CV is built from verified work, ratings, and portfolio evidence. It is designed to show not only what the volunteer can do, but the numbers that back it up.
+              This CV is built from verified work, ratings, and portfolio evidence. It is designed to show not only what the volunteer can do,
+              but the numbers that back it up.
             </p>
           </div>
         </div>
@@ -128,7 +132,10 @@ export function PublicImpactCv({ profile, cv }: Props) {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Approval notes</p>
             <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
               {cv.approvalNotes.map((note) => (
-                <li key={note}>- {note}</li>
+                <li key={note} className="flex gap-2">
+                  <span aria-hidden="true">•</span>
+                  <span>{note}</span>
+                </li>
               ))}
             </ul>
           </div>

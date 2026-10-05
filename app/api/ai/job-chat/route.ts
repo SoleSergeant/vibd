@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { aiRateLimited } from "@/lib/rate-limit";
 import { prisma } from "@/lib/db";
 import { answerJobQuestion } from "@/lib/ai";
 
@@ -8,10 +9,12 @@ export async function POST(request: Request) {
   if (!user?.volunteerProfile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = aiRateLimited(user.id);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => null);
   const taskId = String(body?.taskId || "");
-  const question = String(body?.question || "").trim();
+  const question = String(body?.question || "").trim().slice(0, 1000);
 
   if (!taskId || !question) {
     return NextResponse.json({ error: "taskId and question are required" }, { status: 400 });
@@ -50,8 +53,9 @@ export async function POST(request: Request) {
           .filter((message: { role?: string; content?: string }) => message && (message.role === "user" || message.role === "assistant") && typeof message.content === "string")
           .map((message: { role: "user" | "assistant"; content: string }) => ({
             role: message.role,
-            content: message.content
+            content: message.content.slice(0, 2000)
           }))
+          .slice(-10)
       : [],
     task: {
       title: task.title,

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -172,7 +172,13 @@ export function ImpactCvEditor({ profile, initialCv, sharePath }: Props) {
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <CardTitle>Edit your Impact CV</CardTitle>
-            <Badge className={approvedByAi ? "bg-[color:rgba(21,228,2,0.12)] text-[color:rgb(21,160,2)]" : "bg-[color:rgba(45,138,227,0.12)] text-[color:hsl(var(--brand-blue))]"}>
+            <Badge
+              className={
+                approvedByAi
+                  ? "bg-[color:rgba(21,228,2,0.12)] text-[color:rgb(21,160,2)]"
+                  : "bg-[color:rgba(45,138,227,0.12)] text-[color:hsl(var(--brand-blue))]"
+              }
+            >
               {approvedByAi ? "AI approved" : "Needs approval"}
             </Badge>
           </div>
@@ -262,7 +268,7 @@ export function ImpactCvEditor({ profile, initialCv, sharePath }: Props) {
             <div>
               <CardTitle className="text-2xl">{profile.fullName}</CardTitle>
               <p className="mt-1 text-sm text-slate-600">
-                {profile.location ? `${profile.location} • ` : ""}
+                {profile.location ? `${profile.location} · ` : ""}
                 {profile.availability}
               </p>
             </div>

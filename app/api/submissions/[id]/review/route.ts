@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { SubmissionStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { formValue } from "@/lib/forms";
+import { formValue, parseEnum, parseIntInRange } from "@/lib/forms";
 import { refreshVolunteerRankings } from "@/lib/ranking";
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -9,94 +10,90 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!user?.organizationProfile) {
     return NextResponse.redirect(new URL("/signin", request.url), 303);
   }
+  const organizationId = user.organizationProfile.id;
 
   const submission = await prisma.submission.findUnique({
     where: { id: params.id },
-    include: { task: { include: { organization: true } }, volunteerProfile: true }
+    include: { task: { include: { organization: { select: { name: true } } } }, rating: true }
   });
-  if (!submission || submission.task.organizationId !== user.organizationProfile.id) {
+  if (!submission || submission.task.organizationId !== organizationId) {
     return NextResponse.redirect(new URL("/organization/submissions", request.url), 303);
   }
 
   const form = await request.formData();
-  const status = formValue(form.get("status")) || "SUBMITTED";
-  const quality = Number(formValue(form.get("quality")) || "0") || 0;
-  const communication = Number(formValue(form.get("communication")) || "0") || 0;
-  const speed = Number(formValue(form.get("speed")) || "0") || 0;
-  const feedback = formValue(form.get("feedback"));
+  // Accepting is final: the work is already on the volunteer's portfolio and counted in rankings.
+  const status =
+    submission.status === "ACCEPTED"
+      ? SubmissionStatus.ACCEPTED
+      : parseEnum(SubmissionStatus, formValue(form.get("status")), submission.status);
+  const quality = parseIntInRange(formValue(form.get("quality")), 1, 5);
+  const communication = parseIntInRange(formValue(form.get("communication")), 1, 5);
+  const speed = parseIntInRange(formValue(form.get("speed")), 1, 5);
+  const feedback = formValue(form.get("feedback"), 4000);
 
-  await prisma.submission.update({
-    where: { id: params.id },
-    data: {
-      status: status as never,
-      reviewedAt: new Date(),
-      reviewedByOrganizationId: user.organizationProfile.id,
-      reviewerNote: feedback
-    }
-  });
+  const hasRatingInput = quality !== null || communication !== null || speed !== null || Boolean(feedback);
+  const rating = hasRatingInput
+    ? {
+        // Unfilled scores fall back to the previous rating, or a neutral 3.
+        quality: quality ?? submission.rating?.quality ?? 3,
+        communication: communication ?? submission.rating?.communication ?? 3,
+        speed: speed ?? submission.rating?.speed ?? 3,
+        feedback: feedback || submission.rating?.feedback || ""
+      }
+    : submission.rating;
 
-  if (quality || communication || speed || feedback) {
-    await prisma.rating.upsert({
-      where: { submissionId: params.id },
-      update: {
-        quality,
-        communication,
-        speed,
-        feedback
-      },
-      create: {
-        submissionId: params.id,
-        quality,
-        communication,
-        speed,
-        feedback
+  await prisma.$transaction(async (tx) => {
+    await tx.submission.update({
+      where: { id: submission.id },
+      data: {
+        status,
+        reviewedAt: new Date(),
+        reviewedByOrganizationId: organizationId,
+        reviewerNote: feedback || submission.reviewerNote
       }
     });
-  }
 
-  if (status === "ACCEPTED") {
-    const existingPortfolioItem = await prisma.portfolioItem.findUnique({
-      where: { submissionId: params.id }
-    });
-    const rating = await prisma.rating.findUnique({ where: { submissionId: params.id } });
-    await prisma.portfolioItem.upsert({
-      where: { submissionId: params.id },
-      update: {
-        summary: submission.textSummary,
-        feedback,
-        rating: rating ? Math.round((rating.quality + rating.communication + rating.speed) / 3) : 0,
-        completedAt: new Date(),
-        taskTitle: submission.task.title,
-        organizationName: submission.task.organization.name
-      },
-      create: {
-        volunteerProfileId: submission.volunteerProfileId,
-        taskId: submission.taskId,
-        submissionId: params.id,
+    if (hasRatingInput && rating) {
+      await tx.rating.upsert({
+        where: { submissionId: submission.id },
+        update: rating,
+        create: { submissionId: submission.id, ...rating }
+      });
+    }
+
+    const applicationKey = { taskId: submission.taskId, volunteerProfileId: submission.volunteerProfileId };
+
+    if (status === "ACCEPTED") {
+      const portfolio = {
         taskTitle: submission.task.title,
         organizationName: submission.task.organization.name,
         summary: submission.textSummary,
-        feedback,
-        rating: rating ? Math.round((rating.quality + rating.communication + rating.speed) / 3) : 0,
-        completedAt: new Date()
-      }
-    });
-    if (!existingPortfolioItem) {
-      await prisma.taskApplication.updateMany({
-        where: { taskId: submission.taskId, volunteerProfileId: submission.volunteerProfileId },
-        data: { status: "SHORTLISTED" }
+        feedback: rating?.feedback ?? "",
+        rating: rating ? Math.round((rating.quality + rating.communication + rating.speed) / 3) : 0
+      };
+      await tx.portfolioItem.upsert({
+        where: { submissionId: submission.id },
+        update: portfolio,
+        create: {
+          ...portfolio,
+          volunteerProfileId: submission.volunteerProfileId,
+          taskId: submission.taskId,
+          submissionId: submission.id,
+          completedAt: new Date()
+        }
       });
+      await tx.taskApplication.updateMany({ where: applicationKey, data: { status: "SHORTLISTED" } });
+      await tx.task.updateMany({
+        where: { id: submission.taskId, status: { in: ["OPEN", "IN_REVIEW"] } },
+        data: { status: "COMPLETED" }
+      });
+    } else if (status === "REJECTED") {
+      await tx.taskApplication.updateMany({ where: applicationKey, data: { status: "REJECTED" } });
     }
-    await prisma.task.update({
-      where: { id: submission.taskId },
-      data: { status: "COMPLETED" }
-    });
+  });
+
+  if (status === "ACCEPTED") {
     await refreshVolunteerRankings(prisma);
-  } else if (status === "REJECTED") {
-    await prisma.taskApplication.updateMany({
-      where: { taskId: submission.taskId, volunteerProfileId: submission.volunteerProfileId },
-      data: { status: "REJECTED" }
-    });
   }
 
   return NextResponse.redirect(new URL("/organization/submissions", request.url), 303);
