@@ -478,7 +478,7 @@ async function main() {
     });
 
     await prisma.portfolioItem.upsert({
-      where: { taskId: item.task.id },
+      where: { submissionId: submission.id },
       create: {
         volunteerProfileId: item.volunteer.id,
         taskId: item.task.id,

@@ -16,7 +16,7 @@ Vibd is an MVP web platform for volunteers and early-career talent to prove skil
 ## Setup
 
 1. Install dependencies.
-2. Copy `.env.example` to `.env` and set `DATABASE_URL`, `DIRECT_URL`, and `SESSION_SECRET`.
+2. Copy `.env.example` to `.env` and set `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, and `SESSION_SECRET`.
 3. Optional: set `HF_TOKEN` to enable AI recommendations, skill matching, impact CV generation, and message drafting. If it is empty, the app falls back to local heuristics.
 4. Optional: set `OPENAI_API_KEY` and `OPENAI_MODEL` to enable the volunteer job chatbot. Vibd uses OpenAI's Responses API for this feature. If the key is empty, the chatbot falls back to a built-in job coach response.
 5. Run Prisma generate and migrations.
@@ -37,12 +37,13 @@ The simplest production path is:
 
 1. Push the repo to GitHub.
 2. Import the GitHub repo into Vercel.
-3. Create a hosted PostgreSQL database and copy its pooled connection string into `DATABASE_URL`.
-4. Set the direct connection string in `DIRECT_URL`.
-5. Set `SESSION_SECRET` in Vercel environment variables to a long random string (32+ characters, e.g. `openssl rand -base64 48`). The app refuses to start in production without it.
-6. Optionally set `HF_TOKEN` and `HF_MODEL` if you want AI features in production.
-7. Optionally set `OPENAI_API_KEY` and `OPENAI_MODEL` if you want the OpenAI-powered chatbot in production.
-8. Deploy.
+3. In the Vercel project, open **Storage** and connect a **Neon** Postgres database (Production and Preview, no custom prefix). It provides `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct), which is what Prisma reads.
+4. Set `SESSION_SECRET` in Vercel environment variables to a long random string (32+ characters, e.g. `openssl rand -base64 48`). The app refuses to start in production without it.
+5. Optionally set `HF_TOKEN` and `HF_MODEL` if you want AI features in production.
+6. Optionally set `OPENAI_API_KEY` and `OPENAI_MODEL` if you want the OpenAI-powered chatbot in production.
+7. Deploy.
+
+On Vercel the `vercel-build` script runs `prisma migrate deploy`, then seeds the demo data **only if the database has no users yet**, then builds the app. Preview and Production deployments share the same database, so migrations from a preview branch apply to it too.
 
 Vercel will run `postinstall` and generate Prisma Client during install.
 
